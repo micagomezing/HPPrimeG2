@@ -18,13 +18,18 @@ Para usar otra tecla, cambiar `K_Help` por el nombre de la tecla (`K_Apps`, `K_S
 
 Va en un programa separado a propósito: si esta parte fallara, ING sigue funcionando igual.
 
-## 3. Un ícono en la biblioteca de apps (sin probar)
+## 3. Un ícono en la biblioteca de apps (sin probar) — opción elegida
 
-1. `Apps` → seleccionar **Función** → **Guardar** → nombre `Menu ING`. Queda una app nueva con su ícono.
-2. `Shift` + `1` (Programa): aparece un programa con el nombre de la app. Abrirlo, borrar su contenido y pegar [`extras/INGAPP.txt`](../extras/INGAPP.txt). **Comprobar**.
-3. Desde ahora: `Apps` → tocar **Menu ING** abre el menú.
+El programa `ING` tiene que seguir instalado: la app solo lo llama.
 
-Como la calculadora recuerda la última app usada, la tecla `Apps` deja el ícono a un toque.
+1. `Apps` → resaltar **Función** sin abrirla (con las flechas, o manteniendo el dedo) → **Guardar** → nombre `Menu ING` → **OK**. Queda una app nueva con su ícono.
+2. Abrir **Menu ING** una vez desde `Apps`, para que sea la app activa.
+3. `Shift` + `1` (Programa): arriba de todo aparece **Menu ING (App)**. Abrirlo, borrar su contenido y pegar [`extras/INGAPP.txt`](../extras/INGAPP.txt). **Comprobar**.
+4. Desde ahora: `Apps` → tocar **Menu ING** abre el menú.
+
+Al tocar **Salir** en ING se queda en la vista de la app copiada (la de Función). Los cuadros que abren otra app (Planilla, Estadística, Función) cambian la app activa; para volver, `Apps` → **Menu ING**.
+
+Si al abrir la app aparece la pantalla de Función y no el menú, es que `START()` no se ejecutó: revisar que el texto esté en **Menu ING (App)** y no en un programa común del catálogo.
 
 ## Qué falta saber
 
