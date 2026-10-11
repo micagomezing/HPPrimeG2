@@ -1,0 +1,714 @@
+
+// ---------- Matrices ----------
+// A es M1, B es M2 y el resultado queda en M3.
+
+// Ejecuta una operacion de matrices escrita como texto.
+// Devuelve 1 si salio bien y deja el resultado en M3.
+MtHace(sOper)
+BEGIN
+  LOCAL nMal;
+  nMal:=0;
+  IFERR
+    M3:=EXPR(sOper);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN
+    UiAviso("No se pudo calcular. Revisar el tamaño de las matrices.");
+    RETURN 0;
+  END;
+  RETURN 1;
+END;
+
+// Valor numerico de una operacion de matrices (determinante, rango...).
+MtValor(sOper)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  IFERR
+    vRes:=EXPR(sOper);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  gBad:=0;
+  RETURN vRes;
+END;
+
+MtEdita(nCual)
+BEGIN
+  IFERR
+    IF nCual==1 THEN EDITMAT(M1); END;
+    IF nCual==2 THEN EDITMAT(M2); END;
+    IF nCual==3 THEN EDITMAT(M3); END;
+  THEN
+    UiAviso("No se pudo abrir el editor. Usar Shift + 4 (Matriz).");
+  END;
+  UiMarca();
+END;
+
+MtMuestra()
+BEGIN
+  UiAviso("El resultado quedó guardado en M3. Se abre para verlo.");
+  MtEdita(3);
+END;
+
+MdMatrices()
+BEGIN
+  LOCAL nOpc,nFin,lDat,vRes,lLin,vTra;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Matrices",{"Editar matriz A  (M1)","Editar matriz B  (M2)","Determinante de A","Inversa de A","Transpuesta de A","Rango y traza de A","A + B","A - B","A . B","k . A","A elevada a n","Resolver  A . x = B","Autovalores de A","Forma escalonada de A"},{"A","B","det","A-1","At","rg","A+B","A-B","A.B","k.A","A^n","Ax=B","eig","rref"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN MtEdita(1); END;
+    IF nOpc==2 THEN MtEdita(2); END;
+    IF nOpc==3 THEN
+      vRes:=MtValor("DET(M1)");
+      IF gBad THEN
+        UiAviso("No se pudo calcular. A debe ser cuadrada.");
+      ELSE
+        lLin:={"#Determinante de A (M1)","!"+UiNum(vRes,10)};
+        IF TYPE(vRes)==0 THEN
+          IF vRes==0 THEN
+            lLin:=CONCAT(lLin,{"~Determinante 0: la matriz no tiene inversa."});
+          END;
+        END;
+        UiVer("Determinante",lLin);
+      END;
+      gBad:=0;
+    END;
+    IF nOpc==4 THEN
+      IF MtHace("M1^(-1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==5 THEN
+      IF MtHace("TRN(M1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==6 THEN
+      vRes:=MtValor("RANK(M1)");
+      IF gBad THEN
+        UiAviso("No se pudo calcular el rango.");
+      ELSE
+        lLin:={"#Rango de A (M1)","!"+UiNum(vRes,10)};
+        vTra:=MtValor("TRACE(M1)");
+        IF gBad==0 THEN
+          lLin:=CONCAT(lLin,{"#Traza de A","!"+UiNum(vTra,10)});
+        END;
+        UiVer("Rango y traza",lLin);
+      END;
+      gBad:=0;
+    END;
+    IF nOpc==7 THEN
+      IF MtHace("M1+M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==8 THEN
+      IF MtHace("M1-M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==9 THEN
+      IF MtHace("M1*M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==10 THEN
+      lDat:=UiPedir("k . A",{"k = "},{"Número por el que se multiplica la matriz A"},{2},0);
+      IF SIZE(lDat)>0 THEN
+        K:=lDat(1);
+        IF MtHace("K*M1") THEN MtMuestra(); END;
+      END;
+    END;
+    IF nOpc==11 THEN
+      lDat:=UiPedir("A elevada a n",{"n = "},{"Exponente entero. A debe ser cuadrada"},{2},0);
+      IF SIZE(lDat)>0 THEN
+        K:=ROUND(lDat(1),0);
+        IF MtHace("M1^K") THEN MtMuestra(); END;
+      END;
+    END;
+    IF nOpc==12 THEN
+      IF MtHace("M1^(-1)*M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==13 THEN
+      IF MtHace("EIGENVAL(M1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==14 THEN
+      IF MtHace("RREF(M1)") THEN MtMuestra(); END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Probabilidad ----------
+// Distribuciones: 1 Normal, 2 t de Student, 3 Chi cuadrado, 4 F,
+// 5 Exponencial, 6 Uniforme, 7 Binomial, 8 Poisson,
+// 9 Geometrica, 10 Hipergeometrica.
+
+// Llama a una funcion de la calculadora con hasta 3 numeros (A, B, C).
+PrCall(sFun,nPa,nPb,nPc)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  A:=nPa;
+  B:=nPb;
+  C:=nPc;
+  IFERR
+    vRes:=EXPR(sFun);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Densidad (continuas) o probabilidad puntual (discretas).
+PrPdf(nDis,lPar,nVal)
+BEGIN
+  LOCAL nRes,nKk,nIdx,nZz;
+  nRes:=0;
+  IF nDis==1 THEN
+    nZz:=(nVal-lPar(1))/lPar(2);
+    nRes:=EXP(-nZz*nZz/2)/(lPar(2)*2.506628274631);
+  END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT(A,C)",lPar(1),0,nVal); END;
+  IF nDis==3 THEN
+    IF nVal>0 THEN nRes:=PrCall("CHISQUARE(A,C)",lPar(1),0,nVal); END;
+  END;
+  IF nDis==4 THEN
+    IF nVal>0 THEN nRes:=PrCall("FISHER(A,B,C)",lPar(1),lPar(2),nVal); END;
+  END;
+  IF nDis==5 THEN
+    IF nVal>=0 THEN nRes:=lPar(1)*EXP(-lPar(1)*nVal); END;
+  END;
+  IF nDis==6 THEN
+    IF nVal>=lPar(1) AND nVal<=lPar(2) THEN nRes:=1/(lPar(2)-lPar(1)); END;
+  END;
+  IF nDis>=7 THEN
+    nKk:=ROUND(nVal,0);
+    IF nDis==7 THEN
+      IF nKk>=0 AND nKk<=lPar(1) THEN
+        nRes:=COMB(lPar(1),nKk)*lPar(2)^nKk*(1-lPar(2))^(lPar(1)-nKk);
+      END;
+    END;
+    IF nDis==8 THEN
+      IF nKk>=0 AND nKk<=lPar(1)+40*lPar(1)^0.5+100 THEN
+        nRes:=EXP(-lPar(1));
+        FOR nIdx FROM 1 TO nKk DO
+          nRes:=nRes*lPar(1)/nIdx;
+        END;
+      END;
+    END;
+    IF nDis==9 THEN
+      IF nKk>=1 AND nKk<=100000 THEN nRes:=(1-lPar(1))^(nKk-1)*lPar(1); END;
+    END;
+    IF nDis==10 THEN
+      IF nKk>=MAX(0,lPar(3)-(lPar(1)-lPar(2))) AND nKk<=MIN(lPar(3),lPar(2)) THEN
+        nRes:=COMB(lPar(2),nKk)*COMB(lPar(1)-lPar(2),lPar(3)-nKk)/COMB(lPar(1),lPar(3));
+      END;
+    END;
+  END;
+  RETURN nRes;
+END;
+
+// Menor valor posible de una distribucion discreta.
+PrBase(nDis,lPar)
+BEGIN
+  IF nDis==9 THEN RETURN 1; END;
+  IF nDis==10 THEN RETURN MAX(0,lPar(3)-(lPar(1)-lPar(2))); END;
+  RETURN 0;
+END;
+
+// Probabilidad acumulada P(X <= nVal).
+PrCdf(nDis,lPar,nVal)
+BEGIN
+  LOCAL nRes,nKk,nIdx,nTer;
+  nRes:=0;
+  IF nDis==1 THEN nRes:=PrCall("NORMALD_CDF(A,B,C)",lPar(1),lPar(2),nVal); END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT_CDF(A,C)",lPar(1),0,nVal); END;
+  IF nDis==3 THEN
+    IF nVal>0 THEN nRes:=PrCall("CHISQUARE_CDF(A,C)",lPar(1),0,nVal); END;
+  END;
+  IF nDis==4 THEN
+    IF nVal>0 THEN nRes:=PrCall("FISHER_CDF(A,B,C)",lPar(1),lPar(2),nVal); END;
+  END;
+  IF nDis==5 THEN
+    IF nVal>0 THEN nRes:=1-EXP(-lPar(1)*nVal); END;
+  END;
+  IF nDis==6 THEN
+    nRes:=(nVal-lPar(1))/(lPar(2)-lPar(1));
+    nRes:=MAX(0,MIN(1,nRes));
+  END;
+  IF nDis==7 OR nDis==10 THEN
+    nKk:=FLOOR(nVal);
+    IF nDis==7 THEN nKk:=MIN(nKk,lPar(1)); END;
+    IF nDis==10 THEN nKk:=MIN(nKk,MIN(lPar(3),lPar(2))); END;
+    FOR nIdx FROM PrBase(nDis,lPar) TO nKk DO
+      nRes:=nRes+PrPdf(nDis,lPar,nIdx);
+    END;
+    nRes:=MIN(1,nRes);
+  END;
+  IF nDis==8 THEN
+    nKk:=FLOOR(nVal);
+    nKk:=MIN(nKk,CEILING(lPar(1)+40*lPar(1)^0.5+100));
+    IF nKk>=0 THEN
+      nTer:=EXP(-lPar(1));
+      nRes:=nTer;
+      FOR nIdx FROM 1 TO nKk DO
+        nTer:=nTer*lPar(1)/nIdx;
+        nRes:=nRes+nTer;
+      END;
+      nRes:=MIN(1,nRes);
+    END;
+  END;
+  IF nDis==9 THEN
+    nKk:=MIN(FLOOR(nVal),100000);
+    IF nKk>=1 THEN nRes:=1-(1-lPar(1))^nKk; END;
+  END;
+  RETURN nRes;
+END;
+
+// Valor x tal que P(X <= x) = nPro.
+PrIcdf(nDis,lPar,nPro)
+BEGIN
+  LOCAL nRes,nKk,nAcu,nTope;
+  nRes:=0;
+  IF nDis==1 THEN nRes:=PrCall("NORMALD_ICDF(A,B,C)",lPar(1),lPar(2),nPro); END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT_ICDF(A,C)",lPar(1),0,nPro); END;
+  IF nDis==3 THEN nRes:=PrCall("CHISQUARE_ICDF(A,C)",lPar(1),0,nPro); END;
+  IF nDis==4 THEN nRes:=PrCall("FISHER_ICDF(A,B,C)",lPar(1),lPar(2),nPro); END;
+  IF nDis==5 THEN nRes:=-LN(1-nPro)/lPar(1); END;
+  IF nDis==6 THEN nRes:=lPar(1)+nPro*(lPar(2)-lPar(1)); END;
+  IF nDis>=7 THEN
+    nKk:=PrBase(nDis,lPar);
+    nAcu:=PrPdf(nDis,lPar,nKk);
+    nTope:=nKk+5000;
+    WHILE nAcu<nPro-0.000000000001 AND nKk<nTope DO
+      nKk:=nKk+1;
+      nAcu:=nAcu+PrPdf(nDis,lPar,nKk);
+    END;
+    nRes:=nKk;
+  END;
+  RETURN nRes;
+END;
+
+// Devuelve {media, varianza}. Un -1 indica que no existe.
+PrMom(nDis,lPar)
+BEGIN
+  LOCAL nMed,nVar,nPp,nQq;
+  nMed:=0;
+  nVar:=0;
+  IF nDis==1 THEN
+    nMed:=lPar(1);
+    nVar:=lPar(2)^2;
+  END;
+  IF nDis==2 THEN
+    nMed:=0;
+    nVar:=-1;
+    IF lPar(1)>2 THEN nVar:=lPar(1)/(lPar(1)-2); END;
+  END;
+  IF nDis==3 THEN
+    nMed:=lPar(1);
+    nVar:=2*lPar(1);
+  END;
+  IF nDis==4 THEN
+    nMed:=-1;
+    nVar:=-1;
+    nPp:=lPar(1);
+    nQq:=lPar(2);
+    IF nQq>2 THEN nMed:=nQq/(nQq-2); END;
+    IF nQq>4 THEN nVar:=2*nQq^2*(nPp+nQq-2)/(nPp*(nQq-2)^2*(nQq-4)); END;
+  END;
+  IF nDis==5 THEN
+    nMed:=1/lPar(1);
+    nVar:=1/lPar(1)^2;
+  END;
+  IF nDis==6 THEN
+    nMed:=(lPar(1)+lPar(2))/2;
+    nVar:=(lPar(2)-lPar(1))^2/12;
+  END;
+  IF nDis==7 THEN
+    nMed:=lPar(1)*lPar(2);
+    nVar:=lPar(1)*lPar(2)*(1-lPar(2));
+  END;
+  IF nDis==8 THEN
+    nMed:=lPar(1);
+    nVar:=lPar(1);
+  END;
+  IF nDis==9 THEN
+    nMed:=1/lPar(1);
+    nVar:=(1-lPar(1))/lPar(1)^2;
+  END;
+  IF nDis==10 THEN
+    nPp:=lPar(2)/lPar(1);
+    nMed:=lPar(3)*nPp;
+    nVar:=0;
+    IF lPar(1)>1 THEN
+      nVar:=lPar(3)*nPp*(1-nPp)*(lPar(1)-lPar(3))/(lPar(1)-1);
+    END;
+  END;
+  RETURN {nMed,nVar};
+END;
+
+// Rango horizontal del grafico de una distribucion.
+PrRango(nDis,lPar)
+BEGIN
+  LOCAL nLa,nLb,lMom,nDes;
+  nLa:=0;
+  nLb:=1;
+  lMom:=PrMom(nDis,lPar);
+  nDes:=1;
+  IF lMom(2)>0 THEN nDes:=lMom(2)^0.5; END;
+  IF nDis==1 THEN
+    nLa:=lPar(1)-4*lPar(2);
+    nLb:=lPar(1)+4*lPar(2);
+  END;
+  IF nDis==2 THEN
+    nLa:=-5;
+    nLb:=5;
+  END;
+  IF nDis==3 THEN
+    nLa:=0;
+    nLb:=MAX(8,lPar(1)+4*nDes);
+  END;
+  IF nDis==4 THEN
+    nLa:=0;
+    nLb:=5;
+  END;
+  IF nDis==5 THEN
+    nLa:=0;
+    nLb:=6/lPar(1);
+  END;
+  IF nDis==6 THEN
+    nLa:=lPar(1)-0.25*(lPar(2)-lPar(1));
+    nLb:=lPar(2)+0.25*(lPar(2)-lPar(1));
+  END;
+  IF nDis==7 OR nDis==10 THEN
+    nLa:=PrBase(nDis,lPar);
+    nLb:=lPar(1);
+    IF nDis==10 THEN nLb:=MIN(lPar(3),lPar(2)); END;
+    IF nLb-nLa>60 THEN
+      nLa:=MAX(nLa,FLOOR(lMom(1)-4*nDes));
+      nLb:=MIN(nLb,CEILING(lMom(1)+4*nDes));
+    END;
+  END;
+  IF nDis==8 THEN
+    nLa:=MAX(0,FLOOR(lPar(1)-4*nDes));
+    nLb:=MAX(10,CEILING(lPar(1)+4*nDes));
+  END;
+  IF nDis==9 THEN
+    nLa:=1;
+    nLb:=MIN(60,MAX(10,CEILING(5/lPar(1))));
+  END;
+  RETURN {nLa,nLb};
+END;
+
+PrNombre(nDis)
+BEGIN
+  LOCAL lNom;
+  lNom:={"Normal","t de Student","Chi cuadrado","F de Fisher","Exponencial","Uniforme","Binomial","Poisson","Geométrica","Hipergeométrica"};
+  RETURN lNom(nDis);
+END;
+
+// Rotulos de los parametros de cada distribucion.
+PrRotulos(nDis)
+BEGIN
+  IF nDis==1 THEN RETURN {"Media = ","Desvío estándar = "}; END;
+  IF nDis==2 THEN RETURN {"Grados de libertad = "}; END;
+  IF nDis==3 THEN RETURN {"Grados de libertad = "}; END;
+  IF nDis==4 THEN RETURN {"GL numerador = ","GL denominador = "}; END;
+  IF nDis==5 THEN RETURN {"Tasa lambda = "}; END;
+  IF nDis==6 THEN RETURN {"Mínimo a = ","Máximo b = "}; END;
+  IF nDis==7 THEN RETURN {"Ensayos n = ","Prob. de éxito p = "}; END;
+  IF nDis==8 THEN RETURN {"Media lambda = "}; END;
+  IF nDis==9 THEN RETURN {"Prob. de éxito p = "}; END;
+  RETURN {"Población N = ","Éxitos en N:  K = ","Muestra n = "};
+END;
+
+PrIniciales(nDis)
+BEGIN
+  IF nDis==1 THEN RETURN {0,1}; END;
+  IF nDis==2 THEN RETURN {10}; END;
+  IF nDis==3 THEN RETURN {5}; END;
+  IF nDis==4 THEN RETURN {5,10}; END;
+  IF nDis==5 THEN RETURN {1}; END;
+  IF nDis==6 THEN RETURN {0,1}; END;
+  IF nDis==7 THEN RETURN {10,0.5}; END;
+  IF nDis==8 THEN RETURN {3}; END;
+  IF nDis==9 THEN RETURN {0.3}; END;
+  RETURN {50,10,5};
+END;
+
+// Revisa los parametros. Devuelve "" si estan bien o el motivo.
+PrRevisa(nDis,lPar)
+BEGIN
+  IF nDis==1 THEN
+    IF lPar(2)<=0 THEN RETURN "El desvío estándar debe ser mayor que 0."; END;
+  END;
+  IF nDis==2 OR nDis==3 OR nDis==5 OR nDis==8 THEN
+    IF lPar(1)<=0 THEN RETURN "El parámetro debe ser mayor que 0."; END;
+  END;
+  IF nDis==8 THEN
+    IF lPar(1)>2000 THEN RETURN "Con lambda mayor que 2000 conviene usar la Normal."; END;
+  END;
+  IF nDis==7 THEN
+    IF lPar(1)>2000 THEN RETURN "Con n mayor que 2000 conviene usar la Normal."; END;
+  END;
+  IF nDis==10 THEN
+    IF lPar(1)>2000 THEN RETURN "N debe ser 2000 como máximo."; END;
+  END;
+  IF nDis==4 THEN
+    IF lPar(1)<=0 OR lPar(2)<=0 THEN RETURN "Los grados de libertad deben ser mayores que 0."; END;
+  END;
+  IF nDis==6 THEN
+    IF lPar(2)<=lPar(1) THEN RETURN "El máximo debe ser mayor que el mínimo."; END;
+  END;
+  IF nDis==7 THEN
+    IF lPar(1)<1 OR lPar(1)<>ROUND(lPar(1),0) THEN RETURN "n debe ser un entero mayor o igual a 1."; END;
+    IF lPar(2)<=0 OR lPar(2)>=1 THEN RETURN "p debe estar entre 0 y 1."; END;
+  END;
+  IF nDis==9 THEN
+    IF lPar(1)<=0 OR lPar(1)>=1 THEN RETURN "p debe estar entre 0 y 1."; END;
+  END;
+  IF nDis==10 THEN
+    IF lPar(1)<1 OR lPar(2)<0 OR lPar(2)>lPar(1) OR lPar(3)<1 OR lPar(3)>lPar(1) THEN
+      RETURN "Revisar: K y n no pueden superar a N.";
+    END;
+    IF lPar(1)<>ROUND(lPar(1),0) OR lPar(2)<>ROUND(lPar(2),0) OR lPar(3)<>ROUND(lPar(3),0) THEN
+      RETURN "N, K y n deben ser enteros.";
+    END;
+  END;
+  RETURN "";
+END;
+
+// Pantalla de resultado con el grafico y la zona sombreada.
+// nLo y nHi marcan la zona. sRes es el renglon principal.
+PrPantalla(nDis,lPar,nLo,nHi,sRes,sSeg)
+BEGIN
+  LOCAL lRan,nXa,nXb,nIdx,nVal,nMaxY,lVy,nPx;
+  LOCAL nPy,nPya,nSy,lMom,sTit,nKk,nAnc;
+  LOCAL nCol,nBor,lEvt,sMom,nCnt;
+  lRan:=PrRango(nDis,lPar);
+  nXa:=lRan(1);
+  nXb:=lRan(2);
+  // el rango se amplia para que la zona pedida se vea
+  IF nLo>-100000000 AND nLo<nXa THEN nXa:=nLo-0.05*(nXb-nLo); END;
+  IF nHi<100000000 AND nHi>nXb THEN nXb:=nHi+0.05*(nHi-nXa); END;
+  IF nDis>=7 THEN
+    nXa:=FLOOR(nXa);
+    nXb:=CEILING(nXb);
+    IF nXb-nXa>150 THEN nXb:=nXa+150; END;
+    IF nXb<=nXa THEN nXb:=nXa+1; END;
+  END;
+  sTit:=PrNombre(nDis);
+  UiFondo(sTit);
+  RECT_P(6,28,314,146,RGB(200,206,220),RGB(255,255,255));
+  gBad:=0;
+  IF nDis<7 THEN
+    lVy:={};
+    nMaxY:=0;
+    FOR nIdx FROM 0 TO 152 DO
+      nVal:=nXa+(nXb-nXa)*nIdx/152;
+      lVy:=CONCAT(lVy,{PrPdf(nDis,lPar,nVal)});
+      nMaxY:=MAX(nMaxY,lVy(nIdx+1));
+    END;
+    IF nMaxY<=0 THEN nMaxY:=1; END;
+    nSy:=108/nMaxY;
+    nPya:=145;
+    FOR nIdx FROM 0 TO 152 DO
+      nVal:=nXa+(nXb-nXa)*nIdx/152;
+      nPx:=8+nIdx*2;
+      nPy:=IP(145-MIN(lVy(nIdx+1),nMaxY)*nSy);
+      IF nVal>=nLo AND nVal<=nHi THEN
+        LINE_P(nPx,nPy,nPx,145,RGB(150,195,240));
+        LINE_P(nPx+1,nPy,nPx+1,145,RGB(150,195,240));
+      END;
+      IF nIdx>0 THEN
+        LINE_P(nPx-2,nPya,nPx,nPy,RGB(24,48,88));
+        LINE_P(nPx-2,nPya-1,nPx,nPy-1,RGB(24,48,88));
+      END;
+      nPya:=nPy;
+    END;
+  ELSE
+    nCnt:=nXb-nXa+1;
+    nAnc:=304/nCnt;
+    nMaxY:=0;
+    lVy:={};
+    FOR nKk FROM nXa TO nXb DO
+      lVy:=CONCAT(lVy,{PrPdf(nDis,lPar,nKk)});
+      nMaxY:=MAX(nMaxY,lVy(nKk-nXa+1));
+    END;
+    IF nMaxY<=0 THEN nMaxY:=1; END;
+    nSy:=108/nMaxY;
+    FOR nKk FROM nXa TO nXb DO
+      nPx:=IP(8+(nKk-nXa)*nAnc);
+      nPy:=IP(145-lVy(nKk-nXa+1)*nSy);
+      nCol:=RGB(170,178,196);
+      nBor:=RGB(120,128,150);
+      IF nKk>=nLo AND nKk<=nHi THEN
+        nCol:=RGB(60,130,215);
+        nBor:=RGB(24,48,88);
+      END;
+      RECT_P(nPx,nPy,IP(MAX(nPx,nPx+nAnc-2)),145,nBor,nCol);
+    END;
+  END;
+  LINE_P(6,146,314,146,RGB(120,125,140));
+  TEXTOUT_P(UiNum(nXa,4),8,148,1,RGB(90,95,110));
+  TEXTOUT_P(UiNum(nXb,4),276,148,1,RGB(90,95,110));
+  TEXTOUT_P(sRes,8,161,4,RGB(20,70,150),306);
+  TEXTOUT_P(sSeg,8,183,2,RGB(20,20,30),306);
+  lMom:=PrMom(nDis,lPar);
+  sMom:="Media: ";
+  IF lMom(1)==-1 AND nDis==4 THEN
+    sMom:=sMom+"no existe";
+  ELSE
+    sMom:=sMom+UiNum(lMom(1),6);
+  END;
+  sMom:=sMom+"    Desvío: ";
+  IF lMom(2)<0 THEN
+    sMom:=sMom+"no existe";
+  ELSE
+    sMom:=sMom+UiNum(lMom(2)^0.5,6);
+  END;
+  TEXTOUT_P(sMom,8,201,2,RGB(105,110,128),306);
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+MdProba()
+BEGIN
+  LOCAL nDis,nTip,nFin,nFin2,lPar,lLab,lIni,lAyu;
+  LOCAL lDat,nNp,nIdx,sMal,nVa,nVb,nPro,sRes;
+  LOCAL sSeg,lOpc,lSim,nQq,nGrande,lUlt,nDisc;
+  nFin:=0;
+  nGrande:=1000000000;
+  REPEAT
+    nDis:=UiMenu("Probabilidad",{"Normal","t de Student","Chi cuadrado","F de Fisher","Exponencial","Uniforme","Binomial","Poisson","Geométrica","Hipergeométrica"},{"N","t","X2","F","exp","U","Bin","Poi","Geo","Hip"});
+    IF nDis==0 THEN
+      nFin:=1;
+    ELSE
+      lPar:=PrIniciales(nDis);
+      lUlt:={0,1,0.95};
+      nDisc:=0;
+      IF nDis>=7 THEN
+        nDisc:=1;
+        lUlt:={2,5,0.95};
+      END;
+      nFin2:=0;
+      REPEAT
+        lOpc:={"P(X <= a)   acumulada a izquierda","P(X >= a)   cola derecha","P(a <= X <= b)   entre dos valores","Valor x para una probabilidad"};
+        lSim:={"<=a",">=a","a-b","x=?"};
+        IF nDisc THEN
+          lOpc:=CONCAT(lOpc,{"P(X = a)   valor exacto"});
+          lSim:=CONCAT(lSim,{"=a"});
+        END;
+        nTip:=UiMenu(PrNombre(nDis),lOpc,lSim);
+        IF nTip==0 THEN
+          nFin2:=1;
+        ELSE
+          lLab:=PrRotulos(nDis);
+          nNp:=SIZE(lLab);
+          lIni:=lPar;
+          lAyu:={};
+          FOR nIdx FROM 1 TO nNp DO
+            lAyu:=CONCAT(lAyu,{"Parámetro de la distribución "+PrNombre(nDis)});
+          END;
+          IF nTip==1 OR nTip==2 OR nTip==5 THEN
+            lLab:=CONCAT(lLab,{"a = "});
+            lAyu:=CONCAT(lAyu,{"Valor de la variable"});
+            lIni:=CONCAT(lIni,{lUlt(1)});
+          END;
+          IF nTip==3 THEN
+            lLab:=CONCAT(lLab,{"a = ","b = "});
+            lAyu:=CONCAT(lAyu,{"Extremo inferior","Extremo superior"});
+            lIni:=CONCAT(lIni,{lUlt(1),lUlt(2)});
+          END;
+          IF nTip==4 THEN
+            lLab:=CONCAT(lLab,{"Probabilidad = "});
+            lAyu:=CONCAT(lAyu,{"Probabilidad acumulada a izquierda, entre 0 y 1"});
+            lIni:=CONCAT(lIni,{lUlt(3)});
+          END;
+          lDat:=UiPedir(PrNombre(nDis),lLab,lAyu,lIni,0);
+          IF SIZE(lDat)>0 THEN
+            lPar:={};
+            FOR nIdx FROM 1 TO nNp DO
+              lPar:=CONCAT(lPar,{lDat(nIdx)});
+            END;
+            sMal:=PrRevisa(nDis,lPar);
+            nVa:=lDat(nNp+1);
+            nVb:=nVa;
+            IF nTip==3 THEN
+              nVb:=lDat(nNp+2);
+              IF nVb<nVa THEN sMal:="b debe ser mayor o igual que a."; END;
+            END;
+            IF nTip==4 THEN
+              IF nVa<=0 OR nVa>=1 THEN sMal:="La probabilidad debe estar entre 0 y 1."; END;
+            END;
+            IF sMal<>"" THEN
+              UiAviso(sMal);
+              lPar:=PrIniciales(nDis);
+            ELSE
+              UiCalc(PrNombre(nDis));
+              gBad:=0;
+              sSeg:="";
+              IF nTip==1 THEN
+                lUlt(1):=nVa;
+                nPro:=PrCdf(nDis,lPar,nVa);
+                sRes:="P(X <= "+UiNum(nVa,6)+") = "+UiNum(nPro,6);
+                sSeg:="Complemento: P(X > "+UiNum(nVa,6)+") = "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,-nGrande,nVa,sRes,sSeg); END;
+              END;
+              IF nTip==2 THEN
+                lUlt(1):=nVa;
+                IF nDisc THEN
+                  nPro:=1-PrCdf(nDis,lPar,CEILING(nVa)-1);
+                ELSE
+                  nPro:=1-PrCdf(nDis,lPar,nVa);
+                END;
+                sRes:="P(X >= "+UiNum(nVa,6)+") = "+UiNum(nPro,6);
+                sSeg:="Complemento: P(X < "+UiNum(nVa,6)+") = "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,nVa,nGrande,sRes,sSeg); END;
+              END;
+              IF nTip==3 THEN
+                lUlt(1):=nVa;
+                lUlt(2):=nVb;
+                IF nDisc THEN
+                  nPro:=PrCdf(nDis,lPar,nVb)-PrCdf(nDis,lPar,CEILING(nVa)-1);
+                ELSE
+                  nPro:=PrCdf(nDis,lPar,nVb)-PrCdf(nDis,lPar,nVa);
+                END;
+                sRes:="P("+UiNum(nVa,5)+" <= X <= "+UiNum(nVb,5)+") = "+UiNum(nPro,6);
+                sSeg:="Fuera de ese intervalo: "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,nVa,nVb,sRes,sSeg); END;
+              END;
+              IF nTip==4 THEN
+                lUlt(3):=nVa;
+                nQq:=PrIcdf(nDis,lPar,nVa);
+                sRes:="x = "+UiNum(nQq,7);
+                sSeg:="P(X <= x) = "+UiNum(nVa,6);
+                IF nDisc THEN
+                  sSeg:="Menor x con P(X <= x) >= "+UiNum(nVa,6)+"  (da "+UiNum(PrCdf(nDis,lPar,nQq),6)+")";
+                END;
+                IF gBad==0 THEN PrPantalla(nDis,lPar,-nGrande,nQq,sRes,sSeg); END;
+              END;
+              IF nTip==5 THEN
+                lUlt(1):=nVa;
+                nPro:=PrPdf(nDis,lPar,nVa);
+                sRes:="P(X = "+UiNum(ROUND(nVa,0),6)+") = "+UiNum(nPro,6);
+                sSeg:="Acumulada: P(X <= "+UiNum(ROUND(nVa,0),6)+") = "+UiNum(PrCdf(nDis,lPar,nVa),6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,ROUND(nVa,0),ROUND(nVa,0),sRes,sSeg); END;
+              END;
+              IF gBad THEN
+                UiAviso("No se pudo calcular con esos valores.");
+                gBad:=0;
+              END;
+            END;
+          END;
+        END;
+      UNTIL nFin2;
+    END;
+  UNTIL nFin;
+END;

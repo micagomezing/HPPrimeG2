@@ -1,0 +1,408 @@
+
+// ---------- Coordenadas ----------
+
+// Angulo en radianes del punto (nPx,nPy), entre -pi y pi.
+CoAngulo(nPx,nPy)
+BEGIN
+  LOCAL nRad,nAng;
+  nRad:=(nPx^2+nPy^2)^0.5;
+  IF nRad==0 THEN RETURN 0; END;
+  nAng:=ACOS(MAX(-1,MIN(1,nPx/nRad)))/gAng;
+  IF nPy<0 THEN nAng:=-nAng; END;
+  RETURN nAng;
+END;
+
+// Quita el ruido numerico: un valor despreciable frente a nRef pasa a 0.
+CoCero(nVal,nRef)
+BEGIN
+  IF ABS(nVal)<0.0000000001*ABS(nRef) THEN RETURN 0; END;
+  RETURN nVal;
+END;
+
+// Dibuja un punto del plano con sus dos juegos de coordenadas.
+CoPunto(nPx,nPy)
+BEGIN
+  LOCAL nRad,nAng,nEsc,nQx,nQy,lEvt,nIdx,nQa;
+  LOCAL nQb,nAa,nRp;
+  nRad:=(nPx^2+nPy^2)^0.5;
+  nAng:=CoAngulo(nPx,nPy);
+  UiFondo("Coordenadas");
+  TEXTOUT_P("Cartesianas",8,32,1,RGB(105,110,128));
+  TEXTOUT_P("x = "+UiNum(nPx,8),8,46,4,RGB(20,20,30));
+  TEXTOUT_P("y = "+UiNum(nPy,8),8,67,4,RGB(20,20,30));
+  TEXTOUT_P("Polares",8,96,1,RGB(105,110,128));
+  TEXTOUT_P("r = "+UiNum(nRad,8),8,110,4,RGB(20,70,150));
+  TEXTOUT_P("áng = "+UiNum(nAng*57.2957795130823,7)+"°",8,131,4,RGB(20,70,150));
+  TEXTOUT_P("áng = "+UiNum(nAng,7)+" rad",8,153,3,RGB(20,70,150));
+  IF nAng<0 THEN
+    TEXTOUT_P("o bien "+UiNum(nAng*57.2957795130823+360,7)+"°  =  "+UiNum(nAng+6.28318530717959,7)+" rad",8,178,2,RGB(105,110,128));
+  END;
+  RECT_P(190,30,312,152,RGB(200,206,220),RGB(255,255,255));
+  LINE_P(194,91,308,91,RGB(150,155,170));
+  LINE_P(251,34,251,148,RGB(150,155,170));
+  nEsc:=MAX(ABS(nPx),ABS(nPy));
+  IF nEsc>0 THEN
+    nQx:=IP(251+50*nPx/nEsc);
+    nQy:=IP(91-50*nPy/nEsc);
+    // arco del angulo
+    nRp:=16;
+    nQa:=251+nRp;
+    nQb:=91;
+    FOR nIdx FROM 1 TO 24 DO
+      nAa:=nAng*nIdx/24;
+      LINE_P(IP(nQa),IP(nQb),IP(251+nRp*COS(nAa*gAng)),IP(91-nRp*SIN(nAa*gAng)),RGB(60,130,215));
+      nQa:=251+nRp*COS(nAa*gAng);
+      nQb:=91-nRp*SIN(nAa*gAng);
+    END;
+    LINE_P(251,91,nQx,nQy,RGB(200,50,40));
+    LINE_P(251,92,nQx,nQy+1,RGB(200,50,40));
+    RECT_P(nQx-3,nQy-3,nQx+3,nQy+3,RGB(200,50,40),RGB(200,50,40));
+  END;
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+// Pasa un angulo a radianes segun la unidad elegida (1 grados, 2 rad).
+CoRad(nAng,nUni)
+BEGIN
+  IF nUni==1 THEN RETURN nAng*0.0174532925199433; END;
+  RETURN nAng;
+END;
+
+MdCoord()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nAng,nRad,lLin,nPx;
+  LOCAL nPy,nPz,nRho,nFi,nUd,sFun,nTh,sHasta;
+  LOCAL nMal,nLimA,nLimB;
+  nFin:=0;
+  nUd:=1;
+  REPEAT
+    nOpc:=UiMenu("Coordenadas",{"Cartesianas -> Polares","Polares -> Cartesianas","Cartesianas -> Cilíndricas y esféricas","Cilíndricas -> Cartesianas y esféricas","Esféricas -> Cartesianas y cilíndricas","Gráfico polar  r = f(t)","Ecuación cartesiana -> polar"},{"xy","r,t","xyz","cil","esf","r(t)","ec"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Cartesianas -> Polares",{"x = ","y = "},{"Coordenada horizontal","Coordenada vertical"},{1,1},0);
+      IF SIZE(lDat)>0 THEN CoPunto(lDat(1),lDat(2)); END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Polares -> Cartesianas",{"r = ","ángulo = ","1 = grados, 2 = rad: "},{"Radio","Ángulo medido desde el eje x","Escribir 1 para grados o 2 para radianes"},{1,45,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(3);
+        nAng:=CoRad(lDat(2),nUd);
+        CoPunto(CoCero(lDat(1)*COS(nAng*gAng),lDat(1)),CoCero(lDat(1)*SIN(nAng*gAng),lDat(1)));
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Cartesianas",{"x = ","y = ","z = "},{"Coordenada x","Coordenada y","Coordenada z"},{1,1,1},0);
+      IF SIZE(lDat)>0 THEN
+        nPx:=lDat(1);
+        nPy:=lDat(2);
+        nPz:=lDat(3);
+        nRad:=(nPx^2+nPy^2)^0.5;
+        nTh:=CoAngulo(nPx,nPy);
+        nRho:=(nPx^2+nPy^2+nPz^2)^0.5;
+        nFi:=CoAngulo(nPz,nRad);
+        lLin:={"#Cartesianas"," x = "+UiNum(nPx,8)+"   y = "+UiNum(nPy,8)+"   z = "+UiNum(nPz,8),"#Cilíndricas  (r, ángulo, z)","!r = "+UiNum(nRad,8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad","!z = "+UiNum(nPz,8),"#Esféricas  (rho, ángulo, fi)","!rho = "+UiNum(nRho,8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad","!fi = "+UiNum(nFi*57.2957795130823,7)+"°  =  "+UiNum(nFi,7)+" rad","~áng: ángulo en el plano xy desde el eje x. fi: ángulo medido desde el eje z."};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Cilíndricas",{"r = ","ángulo = ","z = ","1 = grados, 2 = rad: "},{"Distancia al eje z","Ángulo en el plano xy desde el eje x","Altura","Escribir 1 para grados o 2 para radianes"},{1,45,1,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(4);
+        nRad:=lDat(1);
+        nTh:=CoRad(lDat(2),nUd);
+        nPz:=lDat(3);
+        nPx:=CoCero(nRad*COS(nTh*gAng),nRad);
+        nPy:=CoCero(nRad*SIN(nTh*gAng),nRad);
+        nRho:=(nRad^2+nPz^2)^0.5;
+        nFi:=CoAngulo(nPz,nRad);
+        lLin:={"#Cilíndricas"," r = "+UiNum(nRad,8)+"   áng = "+UiNum(lDat(2),7)+"   z = "+UiNum(nPz,8),"#Cartesianas","!x = "+UiNum(nPx,8),"!y = "+UiNum(nPy,8),"!z = "+UiNum(nPz,8),"#Esféricas  (rho, ángulo, fi)","!rho = "+UiNum(nRho,8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad","!fi = "+UiNum(nFi*57.2957795130823,7)+"°  =  "+UiNum(nFi,7)+" rad","~fi: ángulo medido desde el eje z."};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==5 THEN
+      lDat:=UiPedir("Esféricas",{"rho = ","ángulo = ","fi = ","1 = grados, 2 = rad: "},{"Distancia al origen","Ángulo en el plano xy desde el eje x","Ángulo medido desde el eje z","Escribir 1 para grados o 2 para radianes"},{1,45,60,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(4);
+        nRho:=lDat(1);
+        nTh:=CoRad(lDat(2),nUd);
+        nFi:=CoRad(lDat(3),nUd);
+        nRad:=CoCero(nRho*SIN(nFi*gAng),nRho);
+        nPz:=CoCero(nRho*COS(nFi*gAng),nRho);
+        nPx:=CoCero(nRad*COS(nTh*gAng),nRho);
+        nPy:=CoCero(nRad*SIN(nTh*gAng),nRho);
+        lLin:={"#Esféricas"," rho = "+UiNum(nRho,8)+"   áng = "+UiNum(lDat(2),7)+"   fi = "+UiNum(lDat(3),7),"#Cartesianas","!x = "+UiNum(nPx,8),"!y = "+UiNum(nPy,8),"!z = "+UiNum(nPz,8),"#Cilíndricas  (r, ángulo, z)","!r = "+UiNum(nRad,8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad","!z = "+UiNum(nPz,8)};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==6 THEN
+      sHasta:="2*pi";
+      IF gAng>1.5 THEN sHasta:="360"; END;
+      IF gAng>60 THEN sHasta:="400"; END;
+      lDat:=UiPedir("Gráfico polar",{"r(t) = ","t desde = ","t hasta = "},{"Radio en función del ángulo t. Ej: 2*sin(3*t)","Ángulo inicial","Ángulo final (en la unidad de la calculadora)"},{"2*sin(3*t)","0",sHasta},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        nLimA:=ExValor(lDat(2));
+        nMal:=nMal+gBad;
+        nLimB:=ExValor(lDat(3));
+        nMal:=nMal+gBad;
+        IF nMal>0 OR nLimB<=nLimA THEN
+          UiAviso("Revisar el rango del ángulo.");
+        ELSE
+          IF ExPrep(lDat(1),{"t",CHAR(952),"x"},{"X","X","X"}) THEN
+            UiGraf("r = "+lDat(1),1,nLimA,nLimB);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==7 THEN
+      lDat:=UiPedir("Ecuación a polares",{"Ecuación: "},{"En x e y. Ej: x^2+y^2=4*x"},{"x^2+y^2=4*x"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Ecuación a polares");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#Ecuación cartesiana"," "+sFun,"#En polares (x = r*cos(t), y = r*sin(t))","!"+ExCas("simplify(subst("+sFun+",[x=r*cos(t),y=r*sin(t)]))"),"#Despejando r","!"+ExCas("solve(simplify(subst("+sFun+",[x=r*cos(t),y=r*sin(t)])),r)")};
+        UiVer("Ecuación a polares",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Iteracion ----------
+
+MdIteracion()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nXx,nXn,nTol,nMaxIt,nIt;
+  LOCAL lLin,nErr,nOk,nMal,lNum,nIdx,nFx,nDf;
+  LOCAL nHh,nXa,nXb,nFa,nFb,nXm,nFm,sEst;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Iteración",{"Punto fijo   x = g(x)","Newton-Raphson   f(x) = 0","Bisección   f(x) = 0 en [a, b]"},{"g(x)","N-R","a|b"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Punto fijo",{"g(x) = ","x inicial = ","Tolerancia = ","Máx. iteraciones = "},{"Se itera x = g(x). Ej: cos(x)","Valor de arranque","Corta cuando el cambio es menor que este valor","Cantidad máxima de pasos"},{"cos(x)","1","0.000001","100"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 4 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Punto fijo");
+            nXx:=lNum(1);
+            nTol:=ABS(lNum(2));
+            nMaxIt:=MAX(1,MIN(500,ROUND(lNum(3),0)));
+            nIt:=0;
+            nOk:=0;
+            nMal:=0;
+            lLin:={"#Iteraciones de x = "+lDat(1)+"   (dif = cambio entre pasos)"," 0)  x = "+UiNum(nXx,8)};
+            WHILE nIt<nMaxIt AND nOk==0 AND nMal==0 DO
+              nIt:=nIt+1;
+              gBad:=0;
+              nXn:=ExF(nXx);
+              IF gBad THEN
+                nMal:=1;
+              ELSE
+                nErr:=ABS(nXn-nXx);
+                nXx:=nXn;
+                IF nIt<=40 OR nErr<=nTol THEN
+                  lLin:=CONCAT(lLin,{" "+STRING(nIt)+")  x = "+UiNum(nXx,8)+"   dif = "+UiNum(nErr,2)});
+                END;
+                IF nErr<=nTol THEN nOk:=1; END;
+                IF ABS(nXx)>10^30 THEN nMal:=2; END;
+              END;
+            END;
+            gBad:=0;
+            sEst:="~Convergió en "+STRING(nIt)+" iteraciones.";
+            IF nOk==0 THEN sEst:="~No convergió en "+STRING(nIt)+" iteraciones. Probar otra forma de g(x) u otro arranque."; END;
+            IF nMal==1 THEN sEst:="~La función no se pudo evaluar. Revisar g(x) y el arranque."; END;
+            IF nMal==2 THEN sEst:="~Los valores se alejan cada vez más: esta g(x) diverge."; END;
+            lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXx,10),sEst,""},lLin);
+            UiVer("Punto fijo",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Newton-Raphson",{"f(x) = ","x inicial = ","Tolerancia = "},{"Se busca f(x) = 0. También acepta una ecuación con =","Valor de arranque, cercano a la solución","Corta cuando el cambio es menor que este valor"},{"x^3-2*x-5","2","0.000001"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 3 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Newton-Raphson");
+            nXx:=lNum(1);
+            nTol:=ABS(lNum(2));
+            nIt:=0;
+            nOk:=0;
+            nMal:=0;
+            lLin:={"#Iteraciones   (dif = cambio entre pasos)"," 0)  x = "+UiNum(nXx,8)};
+            WHILE nIt<100 AND nOk==0 AND nMal==0 DO
+              nIt:=nIt+1;
+              gBad:=0;
+              nHh:=0.00001*MAX(ABS(nXx),0.01);
+              nFx:=ExF(nXx);
+              nDf:=(ExF(nXx+nHh)-ExF(nXx-nHh))/(2*nHh);
+              IF gBad THEN
+                nMal:=1;
+              ELSE
+                IF nDf==0 THEN
+                  nMal:=3;
+                ELSE
+                  nXn:=nXx-nFx/nDf;
+                  nErr:=ABS(nXn-nXx);
+                  nXx:=nXn;
+                  lLin:=CONCAT(lLin,{" "+STRING(nIt)+")  x = "+UiNum(nXx,8)+"   dif = "+UiNum(nErr,2)});
+                  IF nErr<=nTol THEN nOk:=1; END;
+                  IF ABS(nXx)>10^30 THEN nMal:=2; END;
+                END;
+              END;
+            END;
+            gBad:=0;
+            nFx:=ExF(nXx);
+            gBad:=0;
+            sEst:="~Convergió en "+STRING(nIt)+" iteraciones.   f(x) = "+UiNum(nFx,3);
+            IF nOk==0 THEN sEst:="~No convergió. Probar con otro valor de arranque."; END;
+            IF nMal==1 THEN sEst:="~La función no se pudo evaluar. Revisar f(x) y el arranque."; END;
+            IF nMal==2 THEN sEst:="~Los valores se alejan: probar otro arranque."; END;
+            IF nMal==3 THEN sEst:="~La derivada dio 0: probar otro arranque."; END;
+            lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXx,10),sEst,""},lLin);
+            UiVer("Newton-Raphson",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Bisección",{"f(x) = ","a = ","b = ","Tolerancia = "},{"Se busca f(x) = 0. También acepta una ecuación con =","Extremo izquierdo","Extremo derecho. f debe cambiar de signo entre a y b","Ancho final del intervalo"},{"x^3-2*x-5","2","3","0.000001"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 4 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Bisección");
+            nXa:=lNum(1);
+            nXb:=lNum(2);
+            nTol:=MAX(ABS(lNum(3)),0.000000000001);
+            gBad:=0;
+            nFa:=ExF(nXa);
+            nFb:=ExF(nXb);
+            IF gBad THEN
+              gBad:=0;
+              UiAviso("La función no se pudo evaluar en a o en b.");
+            ELSE
+              IF nFa*nFb>0 THEN
+                UiAviso("f(a) y f(b) tienen el mismo signo: elegir otro intervalo.  f(a) = "+UiNum(nFa,4)+"   f(b) = "+UiNum(nFb,4));
+              ELSE
+                nIt:=0;
+                nMal:=0;
+                lLin:={"#Iteraciones   [a ; b]   m = punto medio"};
+                nXm:=(nXa+nXb)/2;
+                WHILE ABS(nXb-nXa)>nTol AND nIt<200 AND nMal==0 DO
+                  nIt:=nIt+1;
+                  nXm:=(nXa+nXb)/2;
+                  gBad:=0;
+                  nFm:=ExF(nXm);
+                  IF gBad THEN
+                    nMal:=1;
+                  ELSE
+                    IF nIt<=40 THEN
+                      lLin:=CONCAT(lLin,{" "+STRING(nIt)+") ["+UiNum(nXa,6)+" ; "+UiNum(nXb,6)+"] m="+UiNum(nXm,6)});
+                    END;
+                    IF nFa*nFm<=0 THEN
+                      nXb:=nXm;
+                      nFb:=nFm;
+                    ELSE
+                      nXa:=nXm;
+                      nFa:=nFm;
+                    END;
+                  END;
+                END;
+                gBad:=0;
+                nXm:=(nXa+nXb)/2;
+                sEst:="~"+STRING(nIt)+" iteraciones.   Ancho final del intervalo: "+UiNum(ABS(nXb-nXa),3);
+                IF nMal THEN sEst:="~La función no se pudo evaluar dentro del intervalo."; END;
+                lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXm,10),sEst,""},lLin);
+                UiVer("Bisección",lLin);
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Interpolacion ----------
+
+MdInterp()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nRes,lLin,nTa,nTb,nFa;
+  LOCAL nFb,sNota,lTab;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Interpolación",{"Lineal  (entre dos puntos)","Doble  (tabla de dos entradas)"},{"1D","2D"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Interpolación lineal",{"x1 = ","y1 = ","x2 = ","y2 = ","x = "},{"Primer punto de la tabla","Valor de la tabla en x1","Segundo punto de la tabla","Valor de la tabla en x2","Punto donde se quiere el valor"},{0,0,1,1,0.5},0);
+      IF SIZE(lDat)>0 THEN
+        IF lDat(3)==lDat(1) THEN
+          UiAviso("x1 y x2 deben ser distintos.");
+        ELSE
+          nRes:=lDat(2)+(lDat(4)-lDat(2))*(lDat(5)-lDat(1))/(lDat(3)-lDat(1));
+          sNota:="~x está entre x1 y x2: interpolación.";
+          IF (lDat(5)-lDat(1))*(lDat(5)-lDat(3))>0 THEN sNota:="~Atención: x está fuera del intervalo (extrapolación)."; END;
+          lLin:={"#Puntos de la tabla"," ("+UiNum(lDat(1),8)+" ; "+UiNum(lDat(2),8)+")"," ("+UiNum(lDat(3),8)+" ; "+UiNum(lDat(4),8)+")","#Valor en x = "+UiNum(lDat(5),8),"!y = "+UiNum(nRes,10),sNota,"#Pendiente"," "+UiNum((lDat(4)-lDat(2))/(lDat(3)-lDat(1)),8)};
+          UiVer("Interpolación lineal",lLin);
+        END;
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Interpolación doble: entradas",{"x1 = ","x2 = ","y1 = ","y2 = ","x buscado = ","y buscado = "},{"Primera entrada: valor de la tabla por debajo","Primera entrada: valor de la tabla por arriba","Segunda entrada: valor de la tabla por debajo","Segunda entrada: valor de la tabla por arriba","Primera entrada del punto que se busca","Segunda entrada del punto que se busca"},{0,1,0,1,0.5,0.5},0);
+      IF SIZE(lDat)>0 THEN
+        IF lDat(2)==lDat(1) OR lDat(4)==lDat(3) THEN
+          UiAviso("x1 y x2 deben ser distintos, y también y1 e y2.");
+        ELSE
+          lTab:=UiPedir("Valores de la tabla",{"f(x1,y1) = ","f(x1,y2) = ","f(x2,y1) = ","f(x2,y2) = "},{"Valor de la tabla en x1 = "+UiNum(lDat(1),6)+" , y1 = "+UiNum(lDat(3),6),"Valor de la tabla en x1 = "+UiNum(lDat(1),6)+" , y2 = "+UiNum(lDat(4),6),"Valor de la tabla en x2 = "+UiNum(lDat(2),6)+" , y1 = "+UiNum(lDat(3),6),"Valor de la tabla en x2 = "+UiNum(lDat(2),6)+" , y2 = "+UiNum(lDat(4),6)},{0,0,0,0},0);
+          IF SIZE(lTab)>0 THEN
+            nTa:=(lDat(5)-lDat(1))/(lDat(2)-lDat(1));
+            nTb:=(lDat(6)-lDat(3))/(lDat(4)-lDat(3));
+            nFa:=lTab(1)+(lTab(3)-lTab(1))*nTa;
+            nFb:=lTab(2)+(lTab(4)-lTab(2))*nTa;
+            nRes:=nFa+(nFb-nFa)*nTb;
+            sNota:="~Los dos valores buscados están dentro de la tabla.";
+            IF nTa<0 OR nTa>1 OR nTb<0 OR nTb>1 THEN sNota:="~Atención: el punto está fuera de la tabla (extrapolación)."; END;
+            lLin:={"#Valor en x = "+UiNum(lDat(5),8)+" ,  y = "+UiNum(lDat(6),8),"!f = "+UiNum(nRes,10),sNota,"#Pasos intermedios"," En y1, interpolando en x:  "+UiNum(nFa,9)," En y2, interpolando en x:  "+UiNum(nFb,9)};
+            UiVer("Interpolación doble",lLin);
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Planilla y estadistica ----------
+
+MdDatos()
+BEGIN
+  LOCAL nOpc;
+  nOpc:=UiMenu("Estadística",{"App Estadística de 1 variable","App Estadística de 2 variables (regresión)","App Inferencia (intervalos y tests)","Distribuciones de probabilidad"},{"1Var","2Var","IC","P(x)"});
+  IF nOpc==1 THEN MdAbreApp({"Statistics 1Var","Statistics_1Var","1Var estadística","Estadística 1Var"},2); END;
+  IF nOpc==2 THEN MdAbreApp({"Statistics 2Var","Statistics_2Var","2Var estadística","Estadística 2Var"},2); END;
+  IF nOpc==3 THEN MdAbreApp({"Inference","Inferencia"},0); END;
+  IF nOpc==4 THEN MdProba(); END;
+END;

@@ -1,0 +1,8 @@
+# El archivo de entrega va con finales de renglon de Windows (CRLF), tal cual.
+dist/*.txt -text
+extras/*.txt -text
+*.ppl text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.png binary

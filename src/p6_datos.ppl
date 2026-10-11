@@ -1,0 +1,298 @@
+
+// ---------- Unidades ----------
+
+UnCats()
+BEGIN
+  RETURN {"Longitud","Área","Volumen","Masa","Tiempo","Temperatura","Presión","Energía","Potencia","Fuerza","Viscosidad dinámica","Viscosidad cinemática, difusividad","Densidad","Velocidad","Caudal volumétrico","Calor específico","Conductividad térmica","Coef. de transferencia de calor","Energía molar","Cantidad de sustancia","Actividad radiactiva","Dosis absorbida","Dosis equivalente","Exposición","Ángulo"};
+END;
+
+// Devuelve {nombres, factores}. El factor pasa 1 unidad a la unidad base.
+UnDatos(nCat)
+BEGIN
+  IF nCat==1 THEN RETURN {{"m","cm","mm","km","micrómetro","nm","angstrom","pulgada (in)","pie (ft)","yarda","milla"},{1,0.01,0.001,1000,0.000001,0.000000001,0.0000000001,0.0254,0.3048,0.9144,1609.344}}; END;
+  IF nCat==2 THEN RETURN {{"m²","cm²","mm²","km²","hectárea","in²","ft²","barn"},{1,0.0001,0.000001,1000000,10000,0.00064516,0.09290304,10^(-28)}}; END;
+  IF nCat==3 THEN RETURN {{"m³","litro","mL (cm³)","ft³","in³","galón (US)","barril de petróleo"},{1,0.001,0.000001,0.028316846592,0.000016387064,0.003785411784,0.158987294928}}; END;
+  IF nCat==4 THEN RETURN {{"kg","g","mg","tonelada","libra (lb)","onza (oz)","u (uma)"},{1,0.001,0.000001,1000,0.45359237,0.028349523125,1.66053906892*10^(-27)}}; END;
+  IF nCat==5 THEN RETURN {{"s","min","h","día","año (365,25 d)","ms","microsegundo"},{1,60,3600,86400,31557600,0.001,0.000001}}; END;
+  IF nCat==7 THEN RETURN {{"Pa","kPa","MPa","bar","atm","mmHg (torr)","psi","kgf/cm²","m de agua","in de Hg"},{1,1000,1000000,100000,101325,133.322368421,6894.75729317,98066.5,9806.65,3386.38815789}}; END;
+  IF nCat==8 THEN RETURN {{"J","kJ","cal (termoquímica)","kcal","BTU","kWh","eV","MeV","erg","L.atm","ft.lbf"},{1,1000,4.184,4184,1055.05585262,3600000,1.602176634*10^(-19),1.602176634*10^(-13),0.0000001,101.325,1.3558179483314}}; END;
+  IF nCat==9 THEN RETURN {{"W","kW","MW","hp","CV","BTU/h","kcal/h"},{1,1000,1000000,745.699871582,735.49875,0.29307107017,1.16222222222}}; END;
+  IF nCat==10 THEN RETURN {{"N","kN","kgf","lbf","dina"},{1,1000,9.80665,4.4482216152605,0.00001}}; END;
+  IF nCat==11 THEN RETURN {{"Pa.s","cP (mPa.s)","poise","lb/(ft.s)","lb/(ft.h)"},{1,0.001,0.1,1.48816394357,0.000413378873214}}; END;
+  IF nCat==12 THEN RETURN {{"m²/s","cm²/s (stokes)","cSt (mm²/s)","ft²/s","ft²/h"},{1,0.0001,0.000001,0.09290304,0.0000258064}}; END;
+  IF nCat==13 THEN RETURN {{"kg/m³","g/cm³","kg/L","lb/ft³","lb/galón (US)"},{1,1000,1000,16.018463374,119.826427317}}; END;
+  IF nCat==14 THEN RETURN {{"m/s","km/h","ft/s","milla/h","nudo"},{1,0.277777777778,0.3048,0.44704,0.514444444444}}; END;
+  IF nCat==15 THEN RETURN {{"m³/s","m³/h","L/s","L/min","galón/min (US)","ft³/s","ft³/min"},{1,0.000277777777778,0.001,0.0000166666666667,0.0000630901964,0.028316846592,0.0004719474432}}; END;
+  IF nCat==16 THEN RETURN {{"J/(kg.K)","kJ/(kg.K)","cal/(g.°C)","kcal/(kg.°C)","BTU/(lb.°F)"},{1,1000,4184,4184,4186.8}}; END;
+  IF nCat==17 THEN RETURN {{"W/(m.K)","kcal/(h.m.°C)","cal/(s.cm.°C)","BTU/(h.ft.°F)"},{1,1.16222222222,418.4,1.73073466637}}; END;
+  IF nCat==18 THEN RETURN {{"W/(m².K)","kcal/(h.m².°C)","BTU/(h.ft².°F)"},{1,1.16222222222,5.67826334111}}; END;
+  IF nCat==19 THEN RETURN {{"J/mol","kJ/mol","cal/mol","kcal/mol","BTU/lbmol","eV por partícula"},{1,1000,4.184,4184,2.326,96485.3321233}}; END;
+  IF nCat==20 THEN RETURN {{"mol","kmol","mmol","lbmol"},{1,1000,0.001,453.59237}}; END;
+  IF nCat==21 THEN RETURN {{"Bq","kBq","MBq","GBq","Ci","mCi","microCi"},{1,1000,1000000,1000000000,37000000000,37000000,37000}}; END;
+  IF nCat==22 THEN RETURN {{"Gy","mGy","rad"},{1,0.001,0.01}}; END;
+  IF nCat==23 THEN RETURN {{"Sv","mSv","microSv","rem","mrem"},{1,0.001,0.000001,0.01,0.00001}}; END;
+  IF nCat==24 THEN RETURN {{"C/kg","roentgen (R)","mR"},{1,0.000258,0.000000258}}; END;
+  IF nCat==25 THEN RETURN {{"radián","grado","gradián","vuelta"},{1,0.0174532925199433,0.015707963267949,6.28318530717959}}; END;
+  RETURN {{"K","°C","°F","°R"},{1,1,1,1}};
+END;
+
+// Temperatura: pasa de la unidad nUni a kelvin.
+UnAKelvin(nVal,nUni)
+BEGIN
+  IF nUni==2 THEN RETURN nVal+273.15; END;
+  IF nUni==3 THEN RETURN (nVal+459.67)*5/9; END;
+  IF nUni==4 THEN RETURN nVal*5/9; END;
+  RETURN nVal;
+END;
+
+UnDeKelvin(nVal,nUni)
+BEGIN
+  IF nUni==2 THEN RETURN nVal-273.15; END;
+  IF nUni==3 THEN RETURN nVal*9/5-459.67; END;
+  IF nUni==4 THEN RETURN nVal*9/5; END;
+  RETURN nVal;
+END;
+
+MdUnidades()
+BEGIN
+  LOCAL nCat,nFin,nFin2,lTab,lNom,lFac,nUni,lDat;
+  LOCAL nBase,lLin,nIdx,nVal,lCat,nUlt;
+  nFin:=0;
+  lCat:=UnCats();
+  nUlt:=1;
+  REPEAT
+    nCat:=UiMenu("Unidades",lCat,{});
+    IF nCat==0 THEN
+      nFin:=1;
+    ELSE
+      lTab:=UnDatos(nCat);
+      lNom:=lTab(1);
+      lFac:=lTab(2);
+      nFin2:=0;
+      REPEAT
+        nUni:=UiMenu(lCat(nCat)+": unidad de origen",lNom,{});
+        IF nUni==0 THEN
+          nFin2:=1;
+        ELSE
+          lDat:=UiPedir(lCat(nCat),{"Valor en "+lNom(nUni)+" = "},{"Cantidad a convertir"},{nUlt},0);
+          IF SIZE(lDat)>0 THEN
+            nUlt:=lDat(1);
+            lLin:={"#"+lCat(nCat),"!"+UiNum(nUlt,10)+"  "+lNom(nUni),"#Equivale a"};
+            IF nCat==6 THEN
+              nBase:=UnAKelvin(nUlt,nUni);
+            ELSE
+              nBase:=nUlt*lFac(nUni);
+            END;
+            FOR nIdx FROM 1 TO SIZE(lNom) DO
+              IF nIdx<>nUni THEN
+                IF nCat==6 THEN
+                  nVal:=UnDeKelvin(nBase,nIdx);
+                ELSE
+                  nVal:=nBase/lFac(nIdx);
+                END;
+                lLin:=CONCAT(lLin,{" "+UiNum(nVal,9)+"   "+lNom(nIdx)});
+              END;
+            END;
+            UiVer("Unidades",lLin);
+          END;
+        END;
+      UNTIL nFin2;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Constantes ----------
+
+MdConstantes()
+BEGIN
+  LOCAL lLin;
+  lLin:={"#Constante de los gases  R"," 8.314462618  J/(mol.K)"," 0.082057366  L.atm/(mol.K)"," 1.98720426  cal/(mol.K)"," 62.363598  L.mmHg/(mol.K)"," 83.14462618  bar.cm³/(mol.K)"," 10.731577  psi.ft³/(lbmol.°R)",
+  "#Número de Avogadro"," 6.02214076E23  1/mol",
+  "#Constante de Boltzmann"," 1.380649E-23  J/K"," 8.617333E-5  eV/K",
+  "#Constante de Faraday"," 96485.33212  C/mol",
+  "#Carga elemental"," 1.602176634E-19  C",
+  "#Constante de Planck"," 6.62607015E-34  J.s",
+  "#Velocidad de la luz"," 299792458  m/s",
+  "#Stefan-Boltzmann"," 5.670374419E-8  W/(m².K^4)",
+  "#Gravedad estándar"," 9.80665  m/s²",
+  "#Atmósfera estándar"," 101325  Pa  =  1.01325  bar"," 760  mmHg  =  14.6959  psi",
+  "#Volumen molar de gas ideal (0 °C, 1 atm)"," 22.41396954  L/mol",
+  "#Unidad de masa atómica  u"," 1.66053907E-27  kg"," 931.494103  MeV",
+  "#Masa del neutrón"," 1.008664916  u"," 939.565422  MeV",
+  "#Masa del protón"," 1.007276467  u"," 938.272089  MeV",
+  "#Masa del electrón"," 0.000548579909  u"," 0.510998951  MeV",
+  "#Masa del átomo de hidrógeno 1"," 1.007825032  u",
+  "#Electronvoltio"," 1 eV  =  1.602176634E-19  J",
+  "#Curie"," 1 Ci  =  3.7E10  Bq",
+  "#Barn"," 1 b  =  1E-24  cm²  =  1E-28  m²",
+  "#Energía por fisión de U-235 (aprox.)"," 200  MeV  =  3.204E-11  J",
+  "#Neutrón térmico (20 °C)"," 0.0253  eV    2200  m/s",
+  "#Agua líquida a 20 °C (aprox.)"," densidad  998.2  kg/m³"," viscosidad  1.002  cP"," calor específico  4182  J/(kg.K)"};
+  UiVer("Constantes",lLin);
+END;
+
+// ---------- Masa molar ----------
+
+QmSimbolos()
+BEGIN
+  RETURN {"H","He","Li","Be","B","C","N","O","F","Ne","Na","Mg","Al","Si","P","S","Cl","Ar","K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","Ge","As","Se","Br","Kr","Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe","Cs","Ba","La","Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu","Hf","Ta","W","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn","Fr","Ra","Ac","Th","Pa","U","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No","Lr","D","T"};
+END;
+
+QmMasas()
+BEGIN
+  RETURN {1.008,4.0026,6.94,9.0122,10.81,12.011,14.007,15.999,18.998,20.180,22.990,24.305,26.982,28.085,30.974,32.06,35.45,39.948,39.098,40.078,44.956,47.867,50.942,51.996,54.938,55.845,58.933,58.693,63.546,65.38,69.723,72.630,74.922,78.971,79.904,83.798,85.468,87.62,88.906,91.224,92.906,95.95,98,101.07,102.906,106.42,107.868,112.414,114.818,118.710,121.760,127.60,126.904,131.293,132.905,137.327,138.905,140.116,140.908,144.242,145,150.36,151.964,157.25,158.925,162.500,164.930,167.259,168.934,173.045,174.967,178.486,180.948,183.84,186.207,190.23,192.217,195.084,196.967,200.592,204.38,207.2,208.980,209,210,222,223,226,227,232.038,231.036,238.029,237,244,243,247,247,251,252,257,258,259,262,2.0141,3.0160};
+END;
+
+// Analiza una formula quimica. Devuelve {indices de elementos, cantidades}.
+// Si hay un error deja gBad en 1 y el motivo en gErr.
+QmParse(sFor)
+BEGIN
+  LOCAL lPartes,nPar,sPar,lCod,nLen,nPos,nCod,nFac;
+  LOCAL sNum,lPila,sLow,sSim,nIdx,lSim,lEle,lCnt;
+  LOCAL nMul,nEle,nYa,nIni,nNum,nTope;
+  gBad:=0;
+  gErr:="";
+  lSim:=QmSimbolos();
+  lEle:={};
+  lCnt:={};
+  // los hidratos se separan con * (por ejemplo CuSO4*5H2O)
+  lPartes:=UiPartir(sFor,"*");
+  FOR nPar FROM 1 TO SIZE(lPartes) DO
+    sPar:=lPartes(nPar);
+    lCod:={};
+    IF sPar<>"" THEN lCod:=ASC(sPar); END;
+    nLen:=SIZE(lCod);
+    // coeficiente inicial de la parte (el 5 de 5H2O)
+    nIni:=1;
+    nFac:=1;
+    sNum:="";
+    nYa:=0;
+    WHILE nIni<=nLen AND nYa==0 DO
+      nCod:=lCod(nIni);
+      IF nCod>=48 AND nCod<=57 THEN
+        sNum:=sNum+CHAR(nCod);
+        nIni:=nIni+1;
+      ELSE
+        IF nCod==32 THEN
+          nIni:=nIni+1;
+        ELSE
+          nYa:=1;
+        END;
+      END;
+    END;
+    IF sNum<>"" THEN nFac:=EXPR(sNum); END;
+    // se recorre de derecha a izquierda
+    lPila:={nFac};
+    sNum:="";
+    sLow:="";
+    nPos:=nLen;
+    WHILE nPos>=nIni DO
+      nCod:=lCod(nPos);
+      nTope:=lPila(SIZE(lPila));
+      nNum:=1;
+      IF sNum<>"" THEN nNum:=EXPR(sNum); END;
+      IF nCod>=48 AND nCod<=57 THEN
+        sNum:=CHAR(nCod)+sNum;
+      END;
+      IF nCod==41 OR nCod==93 THEN
+        lPila:=CONCAT(lPila,{nTope*nNum});
+        sNum:="";
+      END;
+      IF nCod==40 OR nCod==91 THEN
+        IF SIZE(lPila)>1 THEN
+          lPila:=UiSinUlt(lPila);
+        ELSE
+          gBad:=1;
+          gErr:="paréntesis sin cerrar";
+        END;
+        sNum:="";
+      END;
+      IF nCod>=97 AND nCod<=122 THEN
+        sLow:=CHAR(nCod)+sLow;
+      END;
+      IF nCod>=65 AND nCod<=90 THEN
+        sSim:=CHAR(nCod)+sLow;
+        nEle:=UiPos(lSim,sSim);
+        IF nEle==0 THEN
+          gBad:=1;
+          gErr:="no conozco el elemento "+sSim;
+        ELSE
+          nMul:=nNum*nTope;
+          nIdx:=UiPos(lEle,nEle);
+          IF nIdx==0 THEN
+            lEle:=CONCAT({nEle},lEle);
+            lCnt:=CONCAT({nMul},lCnt);
+          ELSE
+            lCnt(nIdx):=lCnt(nIdx)+nMul;
+          END;
+        END;
+        sNum:="";
+        sLow:="";
+      END;
+      nPos:=nPos-1;
+    END;
+    IF SIZE(lPila)>1 THEN
+      gBad:=1;
+      gErr:="paréntesis sin abrir";
+    END;
+    IF sLow<>"" THEN
+      gBad:=1;
+      gErr:="los símbolos empiezan con mayúscula";
+    END;
+  END;
+  IF SIZE(lEle)==0 AND gBad==0 THEN
+    gBad:=1;
+    gErr:="no encontré elementos";
+  END;
+  RETURN {lEle,lCnt};
+END;
+
+MdMasaMolar()
+BEGIN
+  LOCAL lDat,lRes,lEle,lCnt,lSim,lMas,nTot,nIdx;
+  LOCAL lLin,nFin,sFor,nApo,lGr,nMol,nBot;
+  nFin:=0;
+  sFor:="Ca(OH)2";
+  lSim:=QmSimbolos();
+  lMas:=QmMasas();
+  REPEAT
+    lDat:=UiPedir("Masa molar",{"Fórmula: "},{"Respetar mayúsculas: Ca(OH)2, H2SO4, CuSO4*5H2O, D2O"},{sFor},1);
+    IF SIZE(lDat)==0 THEN
+      nFin:=1;
+    ELSE
+      sFor:=lDat(1);
+      lRes:=QmParse(sFor);
+      IF gBad THEN
+        UiAviso("Fórmula no válida: "+gErr);
+        gBad:=0;
+      ELSE
+        lEle:=lRes(1);
+        lCnt:=lRes(2);
+        nTot:=0;
+        FOR nIdx FROM 1 TO SIZE(lEle) DO
+          nTot:=nTot+lCnt(nIdx)*lMas(lEle(nIdx));
+        END;
+        lLin:={"#Masa molar de "+sFor,"!"+UiNum(nTot,8)+"  g/mol","#Composición:  elemento x átomos,  gramos por mol,  % en masa"};
+        FOR nIdx FROM 1 TO SIZE(lEle) DO
+          nApo:=lCnt(nIdx)*lMas(lEle(nIdx));
+          lLin:=CONCAT(lLin,{" "+lSim(lEle(nIdx))+" x "+UiNum(lCnt(nIdx),6)+"     "+UiNum(nApo,7)+" g     "+UiNum(100*nApo/nTot,4)+" %"});
+        END;
+        nBot:=1;
+        WHILE nBot==1 DO
+          nBot:=UiTexto("Masa molar",lLin,{"g y mol","",""});
+          IF nBot==1 THEN
+            lGr:=UiPedir("Gramos y moles",{"Masa en gramos = ","Moles = "},{"Completar uno y dejar el otro en 0","Completar uno y dejar el otro en 0"},{0,0},0);
+            IF SIZE(lGr)>0 THEN
+              IF lGr(1)<>0 THEN
+                nMol:=lGr(1)/nTot;
+                UiVer("Gramos y moles",{"#"+sFor+"   "+UiNum(nTot,8)+" g/mol","#Masa"," "+UiNum(lGr(1),9)+"  g","#Moles","!"+UiNum(nMol,9)+"  mol","#Moléculas (o unidades fórmula)"," "+UiNum(nMol*6.02214076*10^23,7)});
+              ELSE
+                UiVer("Gramos y moles",{"#"+sFor+"   "+UiNum(nTot,8)+" g/mol","#Moles"," "+UiNum(lGr(2),9)+"  mol","#Masa","!"+UiNum(lGr(2)*nTot,9)+"  g","#Moléculas (o unidades fórmula)"," "+UiNum(lGr(2)*6.02214076*10^23,7)});
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;

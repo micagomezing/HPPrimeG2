@@ -1,0 +1,8 @@
+#pragma mode( separator(.,;) integer(h32) )
+// Programa de la app ING: abre el menu al entrar a la app.
+// Va en el programa de la app (no en el catalogo comun).
+// SIN PROBAR en la calculadora.
+START()
+BEGIN
+  ING();
+END;

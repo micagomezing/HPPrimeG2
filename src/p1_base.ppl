@@ -1,0 +1,1211 @@
+#pragma mode( separator(.,;) integer(h32) )
+// =====================================================
+// ING 1.1  -  Menu visual de ingenieria para HP Prime G2
+// Matematica, ingenieria quimica y nuclear.
+//
+// Uso: crear un programa llamado ING, pegar todo este
+// texto, tocar Comprobar y ejecutar ING desde el catalogo.
+// Las funciones se escriben con las teclas normales; da
+// igual mayusculas o minusculas. Ver el cuadro Ayuda.
+// =====================================================
+
+LOCAL gRes,gLhs,gRhs,gBad,gErr,gAng,gMias,gSale;
+LOCAL gFun,gMenTit,gMenTop,gDepura,gMarca;
+
+// ---------- Utilidades generales ----------
+
+// Las funciones de texto de la calculadora no admiten bien los casos
+// limite (largo 0, posicion fuera del texto, texto vacio). Por eso
+// todo el programa las usa a traves de estos ayudantes.
+
+// Resto del texto desde la posicion nPos.
+UiResto(sTxt,nPos)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nPos>DIM(sTxt) THEN RETURN ""; END;
+  IF nPos<=1 THEN RETURN sTxt; END;
+  RETURN MID(sTxt,nPos);
+END;
+
+// Primeros nCnt caracteres.
+UiIzq(sTxt,nCnt)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nCnt<=0 THEN RETURN ""; END;
+  IF nCnt>=DIM(sTxt) THEN RETURN sTxt; END;
+  RETURN LEFT(sTxt,nCnt);
+END;
+
+// nLen caracteres desde la posicion nPos.
+UiMid(sTxt,nPos,nLen)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nLen<=0 THEN RETURN ""; END;
+  IF nPos<1 THEN RETURN ""; END;
+  IF nPos>DIM(sTxt) THEN RETURN ""; END;
+  RETURN MID(sTxt,nPos,nLen);
+END;
+
+// Posicion de sBus dentro de sTxt, o 0 si no aparece.
+UiEn(sTxt,sBus)
+BEGIN
+  IF sTxt=="" THEN RETURN 0; END;
+  IF sBus=="" THEN RETURN 0; END;
+  RETURN INSTRING(sTxt,sBus);
+END;
+
+// Posicion de vVal en la lista, o 0 si no esta o la lista esta vacia.
+UiPos(lLis,vVal)
+BEGIN
+  IF SIZE(lLis)==0 THEN RETURN 0; END;
+  RETURN POS(lLis,vVal);
+END;
+
+UiSinUlt(lLis)
+BEGIN
+  LOCAL lOut,nIdx;
+  lOut:={};
+  FOR nIdx FROM 1 TO SIZE(lLis)-1 DO
+    lOut:=CONCAT(lOut,{lLis(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Separa un texto en partes usando un separador de 1 caracter.
+UiPartir(sTxt,sSep)
+BEGIN
+  LOCAL lOut,sRem,nPos;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  sRem:=sTxt;
+  nPos:=UiEn(sRem,sSep);
+  WHILE nPos>0 DO
+    lOut:=CONCAT(lOut,{UiIzq(sRem,nPos-1)});
+    sRem:=UiResto(sRem,nPos+1);
+    nPos:=UiEn(sRem,sSep);
+  END;
+  lOut:=CONCAT(lOut,{sRem});
+  RETURN lOut;
+END;
+
+// Separa por comas que no esten dentro de parentesis.
+UiComas(sTxt)
+BEGIN
+  LOCAL lOut,lCod,nIdx,nDep,nIni,nCod;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  lCod:=ASC(sTxt);
+  nDep:=0;
+  nIni:=1;
+  FOR nIdx FROM 1 TO SIZE(lCod) DO
+    nCod:=lCod(nIdx);
+    IF nCod==40 OR nCod==91 THEN nDep:=nDep+1; END;
+    IF nCod==41 OR nCod==93 THEN nDep:=nDep-1; END;
+    IF nCod==44 AND nDep==0 THEN
+      lOut:=CONCAT(lOut,{UiMid(sTxt,nIni,nIdx-nIni)});
+      nIni:=nIdx+1;
+    END;
+  END;
+  lOut:=CONCAT(lOut,{UiResto(sTxt,nIni)});
+  RETURN lOut;
+END;
+
+// Corta un texto largo en renglones de nAncho caracteres.
+UiCortar(sTxt,nAncho)
+BEGIN
+  LOCAL lOut,sRem,nCut,nIdx,nHit;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  sRem:=sTxt;
+  WHILE DIM(sRem)>nAncho DO
+    nCut:=nAncho;
+    nIdx:=nAncho;
+    nHit:=0;
+    WHILE nIdx>nAncho-14 AND nHit==0 DO
+      IF UiEn(" +-*/,=)",UiMid(sRem,nIdx,1))>0 THEN
+        nCut:=nIdx;
+        nHit:=1;
+      END;
+      nIdx:=nIdx-1;
+    END;
+    lOut:=CONCAT(lOut,{UiIzq(sRem,nCut)});
+    sRem:=UiResto(sRem,nCut+1);
+  END;
+  lOut:=CONCAT(lOut,{sRem});
+  RETURN lOut;
+END;
+
+// Numero a texto con nDig cifras significativas.
+UiNum(nVal,nDig)
+BEGIN
+  LOCAL nAbs,nExp,nFac,nMan,sOut,nMal;
+  IF TYPE(nVal)<>0 THEN RETURN STRING(nVal); END;
+  IF nVal==0 THEN RETURN "0"; END;
+  sOut:="";
+  nMal:=0;
+  IFERR
+    nAbs:=ABS(nVal);
+    nExp:=FLOOR(LOG(nAbs));
+    IF nExp>=-4 AND nExp<=9 THEN
+      nFac:=10^(nDig-1-nExp);
+      sOut:=STRING(ROUND(nVal*nFac,0)/nFac);
+    ELSE
+      nMan:=nVal/10^nExp;
+      nFac:=10^(nDig-1);
+      nMan:=ROUND(nMan*nFac,0)/nFac;
+      IF ABS(nMan)>=10 THEN
+        nMan:=nMan/10;
+        nExp:=nExp+1;
+      END;
+      sOut:=STRING(nMan)+"E"+STRING(nExp);
+    END;
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN STRING(nVal); END;
+  RETURN sOut;
+END;
+
+// ---------- Pantalla ----------
+
+UiFondo(sTit)
+BEGIN
+  LOCAL sAng;
+  RECT_P(0,0,319,239,RGB(243,244,248),RGB(243,244,248));
+  RECT_P(0,0,319,24,RGB(24,48,88),RGB(24,48,88));
+  IF DIM(sTit)>27 THEN
+    TEXTOUT_P(sTit,8,7,2,RGB(255,255,255),274);
+  ELSE
+    TEXTOUT_P(sTit,8,4,4,RGB(255,255,255),274);
+  END;
+  sAng:="RAD";
+  IF gAng>1.5 THEN sAng:="DEG"; END;
+  IF gAng>60 THEN sAng:="GRA"; END;
+  TEXTOUT_P(sAng,288,8,1,RGB(150,190,240));
+END;
+
+UiCalc(sTit)
+BEGIN
+  UiFondo(sTit);
+  TEXTOUT_P("Calculando...",100,104,4,RGB(110,115,130));
+END;
+
+// Reloj interno en milisegundos, o -1 si no se pudo leer.
+UiReloj()
+BEGIN
+  LOCAL vRel,nMal;
+  vRel:=-1;
+  nMal:=0;
+  IFERR
+    vRel:=EXPR("TICKS");
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN -1; END;
+  IF TYPE(vRel)<>0 THEN RETURN -1; END;
+  RETURN vRel;
+END;
+
+// Se llama al cerrar un formulario o un aviso: durante un instante
+// se ignoran toques y teclas, para que el toque que cerro esa ventana
+// no accione tambien la pantalla siguiente.
+UiMarca()
+BEGIN
+  gMarca:=UiReloj();
+END;
+
+// Espera un toque o una tecla.
+// Devuelve {1,x,y} para un toque y {2,tecla,0} para una tecla.
+UiEspera()
+BEGIN
+  LOCAL vEvt,nFin,lOut,nAhora,nViejo;
+  nFin:=0;
+  lOut:={2,4,0};
+  REPEAT
+    vEvt:=WAIT(-1);
+    nViejo:=0;
+    nAhora:=UiReloj();
+    IF nAhora>=0 AND gMarca>=0 THEN
+      IF nAhora>=gMarca AND nAhora-gMarca<250 THEN nViejo:=1; END;
+    END;
+    IF nViejo==0 THEN
+      IF TYPE(vEvt)==6 THEN
+        IF SIZE(vEvt)>=3 THEN
+          IF vEvt(1)==3 THEN
+            lOut:={1,vEvt(2),vEvt(3)};
+            nFin:=1;
+          END;
+        END;
+      ELSE
+        IF vEvt>=0 THEN
+          lOut:={2,vEvt,0};
+          nFin:=1;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+  RETURN lOut;
+END;
+
+// Numero de boton inferior (1 a 6) segun la posicion x del toque.
+UiSoft(nPosX)
+BEGIN
+  RETURN MIN(IP(nPosX/53.4)+1,6);
+END;
+
+// Tecla numerica: devuelve 0 a 9, o -1 si no es un numero.
+UiDigito(nTec)
+BEGIN
+  RETURN UiPos({47,42,43,44,37,38,39,32,33,34},nTec)-1;
+END;
+
+UiAviso(sTxt)
+BEGIN
+  MSGBOX(sTxt);
+  UiMarca();
+END;
+
+// Visor de texto con paginas.
+// Cada renglon empieza con un caracter de estilo:
+//  "#" rotulo chico   " " texto normal   "!" resultado   "~" nota
+// lBot: rotulos de los 3 primeros botones. Devuelve 1 a 3, o 0 al volver.
+UiTexto(sTit,lLin,lBot)
+BEGIN
+  LOCAL lTxt,lSty,nIdx,nPte,sLin,sSty,lPar,nAncho;
+  LOCAL nTop,nRow,nPosY,nAlt,nFin,lEvt,nRet,nCnt;
+  LOCAL nNext,lPil,nSof,sAnt,sSig,nTec,nFnt,nCol;
+  LOCAL nNec;
+  lTxt:={};
+  lSty:={};
+  FOR nIdx FROM 1 TO SIZE(lLin) DO
+    sLin:=lLin(nIdx);
+    sSty:=" ";
+    IF sLin<>"" THEN
+      sSty:=UiIzq(sLin,1);
+      sLin:=UiResto(sLin,2);
+    END;
+    nAncho:=38;
+    IF sSty=="#" OR sSty=="~" THEN nAncho:=52; END;
+    IF sSty=="!" THEN nAncho:=32; END;
+    lPar:=UiCortar(sLin,nAncho);
+    FOR nPte FROM 1 TO SIZE(lPar) DO
+      lTxt:=CONCAT(lTxt,{lPar(nPte)});
+      lSty:=CONCAT(lSty,{sSty});
+    END;
+  END;
+  nCnt:=SIZE(lTxt);
+  nTop:=1;
+  lPil:={};
+  nFin:=0;
+  nRet:=0;
+  REPEAT
+    UiFondo(sTit);
+    nPosY:=29;
+    nRow:=nTop;
+    nNext:=nCnt+1;
+    WHILE nRow<=nCnt DO
+      sSty:=lSty(nRow);
+      sLin:=lTxt(nRow);
+      nAlt:=18;
+      nFnt:=3;
+      nCol:=RGB(20,20,30);
+      IF sSty=="#" THEN
+        nAlt:=14;
+        nFnt:=1;
+        nCol:=RGB(105,110,128);
+      END;
+      IF sSty=="~" THEN
+        nAlt:=13;
+        nFnt:=1;
+        nCol:=RGB(105,110,128);
+      END;
+      IF sSty=="!" THEN
+        nAlt:=21;
+        nFnt:=4;
+        nCol:=RGB(20,70,150);
+      END;
+      IF sLin=="" THEN nAlt:=6; END;
+      // un rotulo no se deja solo al pie: pasa a la pagina siguiente
+      nNec:=nAlt;
+      IF sSty=="#" AND nRow<nCnt THEN nNec:=nAlt+20; END;
+      IF nPosY+nNec>218 AND nRow>nTop THEN
+        nNext:=nRow;
+        nRow:=nCnt+1;
+      ELSE
+        IF sLin<>"" THEN
+          TEXTOUT_P(sLin,8,nPosY,nFnt,nCol,306);
+        END;
+        nPosY:=nPosY+nAlt;
+        nRow:=nRow+1;
+      END;
+    END;
+    sAnt:="";
+    sSig:="";
+    IF SIZE(lPil)>0 THEN sAnt:="Ant."; END;
+    IF nNext<=nCnt THEN sSig:="Sig."; END;
+    DRAWMENU(lBot(1),lBot(2),lBot(3),sAnt,sSig,"Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN nSof:=UiSoft(lEvt(2)); END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==30 OR nTec==19 THEN nSof:=6; END;
+    IF nTec==2 OR nTec==7 THEN nSof:=4; END;
+    IF nTec==12 OR nTec==8 THEN nSof:=5; END;
+    IF nSof>=1 AND nSof<=3 THEN
+      IF lBot(nSof)<>"" THEN
+        nRet:=nSof;
+        nFin:=1;
+      END;
+    END;
+    IF nSof==4 AND SIZE(lPil)>0 THEN
+      nTop:=lPil(SIZE(lPil));
+      lPil:=UiSinUlt(lPil);
+    END;
+    IF nSof==5 AND nNext<=nCnt THEN
+      lPil:=CONCAT(lPil,{nTop});
+      nTop:=nNext;
+    END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  RETURN nRet;
+END;
+
+UiVer(sTit,lLin)
+BEGIN
+  LOCAL nAux;
+  nAux:=UiTexto(sTit,lLin,{"","",""});
+END;
+
+// Menu de opciones en renglones tactiles. Devuelve la opcion o 0.
+UiMenu(sTit,lOpc,lSim)
+BEGIN
+  LOCAL nCnt,nTop,nIdx,nPosY,lEvt,nRet,nFin,nRow;
+  LOCAL sSig,sAnt,nSof,sSim,nTec,nDig,nMem;
+  nCnt:=SIZE(lOpc);
+  nTop:=1;
+  // si se vuelve al mismo menu, se abre en la pagina donde estaba
+  nMem:=UiPos(gMenTit,sTit);
+  IF nMem>0 THEN
+    nTop:=gMenTop(nMem);
+    IF nTop>nCnt THEN nTop:=1; END;
+  END;
+  nRet:=0;
+  nFin:=0;
+  REPEAT
+    UiFondo(sTit);
+    FOR nRow FROM 1 TO 7 DO
+      nIdx:=nTop+nRow-1;
+      IF nIdx<=nCnt THEN
+        nPosY:=28+(nRow-1)*27;
+        RECT_P(4,nPosY,315,nPosY+24,RGB(200,206,220),RGB(255,255,255));
+        RECT_P(4,nPosY,42,nPosY+24,RGB(31,95,160),RGB(31,95,160));
+        sSim:=STRING(nRow);
+        IF SIZE(lSim)>=nIdx THEN sSim:=lSim(nIdx); END;
+        TEXTOUT_P(sSim,8,nPosY+6,2,RGB(255,255,255),33);
+        IF DIM(lOpc(nIdx))>31 THEN
+          TEXTOUT_P(lOpc(nIdx),49,nPosY+6,2,RGB(20,20,30),264);
+        ELSE
+          TEXTOUT_P(lOpc(nIdx),49,nPosY+4,3,RGB(20,20,30),264);
+        END;
+      END;
+    END;
+    sAnt:="";
+    sSig:="";
+    IF nTop>1 THEN sAnt:="Ant."; END;
+    IF nTop+7<=nCnt THEN sSig:="Sig."; END;
+    DRAWMENU("","","",sAnt,sSig,"Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    nRow:=0;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=28 THEN nRow:=IP((lEvt(3)-28)/27)+1; END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+      nDig:=UiDigito(nTec);
+      IF nDig>=1 AND nDig<=7 THEN nRow:=nDig; END;
+    END;
+    IF nTec==4 OR nTec==19 THEN nSof:=6; END;
+    IF nTec==2 OR nTec==7 THEN nSof:=4; END;
+    IF nTec==12 OR nTec==8 THEN nSof:=5; END;
+    IF nRow>=1 AND nRow<=7 THEN
+      nIdx:=nTop+nRow-1;
+      IF nIdx<=nCnt THEN
+        nRet:=nIdx;
+        nFin:=1;
+      END;
+    END;
+    IF nSof==4 AND nTop>1 THEN nTop:=nTop-7; END;
+    IF nSof==5 AND nTop+7<=nCnt THEN nTop:=nTop+7; END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  IF nRet==0 THEN nTop:=1; END;
+  IF nMem>0 THEN
+    gMenTop(nMem):=nTop;
+  ELSE
+    IF SIZE(gMenTit)>=40 THEN
+      gMenTit:={};
+      gMenTop:={};
+    END;
+    gMenTit:=CONCAT(gMenTit,{sTit});
+    gMenTop:=CONCAT(gMenTop,{nTop});
+  END;
+  RETURN nRet;
+END;
+
+// ---------- Formularios ----------
+
+// Hasta 6 campos numericos. Devuelve la lista de valores o {}.
+UiFormN(sTit,lLab,lAyu,lIni)
+BEGIN
+  LOCAL nCnt,nRes,nVa,nVb,nVc,nVd,nVe,nVf;
+  LOCAL lAll,lOut,nIdx;
+  nCnt:=SIZE(lLab);
+  nRes:=0;
+  nVa:=0; nVb:=0; nVc:=0; nVd:=0; nVe:=0; nVf:=0;
+  IF nCnt>=1 THEN nVa:=lIni(1); END;
+  IF nCnt>=2 THEN nVb:=lIni(2); END;
+  IF nCnt>=3 THEN nVc:=lIni(3); END;
+  IF nCnt>=4 THEN nVd:=lIni(4); END;
+  IF nCnt>=5 THEN nVe:=lIni(5); END;
+  IF nCnt>=6 THEN nVf:=lIni(6); END;
+  IF nCnt==1 THEN
+    nRes:=INPUT({{nVa,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==2 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==3 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==4 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==5 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]},{nVe,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==6 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]},{nVe,[0]},{nVf,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  UiMarca();
+  IF nRes==0 THEN RETURN {}; END;
+  lAll:={nVa,nVb,nVc,nVd,nVe,nVf};
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lOut:=CONCAT(lOut,{lAll(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Hasta 6 campos de texto. Devuelve la lista de textos o {}.
+UiFormT(sTit,lLab,lAyu,lIni)
+BEGIN
+  LOCAL nCnt,nRes,sTxA,sTxB,sTxC,sTxD,sTxE,sTxF;
+  LOCAL lAll,lOut,nIdx;
+  nCnt:=SIZE(lLab);
+  nRes:=0;
+  sTxA:=""; sTxB:=""; sTxC:=""; sTxD:=""; sTxE:=""; sTxF:="";
+  IF nCnt>=1 THEN sTxA:=lIni(1); END;
+  IF nCnt>=2 THEN sTxB:=lIni(2); END;
+  IF nCnt>=3 THEN sTxC:=lIni(3); END;
+  IF nCnt>=4 THEN sTxD:=lIni(4); END;
+  IF nCnt>=5 THEN sTxE:=lIni(5); END;
+  IF nCnt>=6 THEN sTxF:=lIni(6); END;
+  IF nCnt==1 THEN
+    nRes:=INPUT({{sTxA,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==2 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==3 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==4 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==5 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]},{sTxE,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==6 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]},{sTxE,[2]},{sTxF,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  UiMarca();
+  IF nRes==0 THEN RETURN {}; END;
+  lAll:={sTxA,sTxB,sTxC,sTxD,sTxE,sTxF};
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lOut:=CONCAT(lOut,{lAll(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Formulario con cualquier cantidad de campos: lo reparte en
+// pantallas de hasta 6. nTipo 0 = numeros, 1 = textos.
+UiPedir(sTit,lLab,lAyu,lIni,nTipo)
+BEGIN
+  LOCAL nCnt,nIni,nFin,lOut,lPar,nIdx,lLb,lAy;
+  LOCAL lIn,sTt,nTot,nTam,nPag;
+  nCnt:=SIZE(lLab);
+  lOut:={};
+  IF nCnt==0 THEN RETURN {0}; END;
+  nTot:=CEILING(nCnt/6);
+  nTam:=CEILING(nCnt/nTot);
+  nIni:=1;
+  nPag:=1;
+  WHILE nIni<=nCnt DO
+    nFin:=MIN(nIni+nTam-1,nCnt);
+    lLb:={};
+    lAy:={};
+    lIn:={};
+    FOR nIdx FROM nIni TO nFin DO
+      lLb:=CONCAT(lLb,{lLab(nIdx)});
+      lAy:=CONCAT(lAy,{lAyu(nIdx)});
+      lIn:=CONCAT(lIn,{lIni(nIdx)});
+    END;
+    sTt:=sTit;
+    IF nTot>1 THEN
+      sTt:=sTit+" ("+STRING(nPag)+"/"+STRING(nTot)+")";
+    END;
+    IF nTipo==0 THEN
+      lPar:=UiFormN(sTt,lLb,lAy,lIn);
+    ELSE
+      lPar:=UiFormT(sTt,lLb,lAy,lIn);
+    END;
+    IF SIZE(lPar)==0 THEN RETURN {}; END;
+    lOut:=CONCAT(lOut,lPar);
+    nIni:=nFin+1;
+    nPag:=nPag+1;
+  END;
+  RETURN lOut;
+END;
+
+// ---------- Motor de expresiones ----------
+
+// Clase de caracter: 1 letra, 2 digito, 3 punto, 0 otro.
+ExClase(nCod)
+BEGIN
+  IF nCod>=97 AND nCod<=122 THEN RETURN 1; END;
+  IF nCod>=65 AND nCod<=90 THEN RETURN 1; END;
+  IF nCod==95 THEN RETURN 1; END;
+  IF nCod>=913 AND nCod<=969 THEN RETURN 1; END;
+  IF nCod>=48 AND nCod<=57 THEN RETURN 2; END;
+  IF nCod==46 THEN RETURN 3; END;
+  RETURN 0;
+END;
+
+// Pasa las letras A-Z a minusculas.
+ExMin(sTxt)
+BEGIN
+  LOCAL lCod,nIdx;
+  IF sTxt=="" THEN RETURN ""; END;
+  lCod:=ASC(sTxt);
+  FOR nIdx FROM 1 TO SIZE(lCod) DO
+    IF lCod(nIdx)>=65 AND lCod(nIdx)<=90 THEN
+      lCod(nIdx):=lCod(nIdx)+32;
+    END;
+  END;
+  IF SIZE(lCod)==0 THEN RETURN ""; END;
+  RETURN CHAR(lCod);
+END;
+
+ExFunc()
+BEGIN
+  RETURN {"sin","cos","tan","asin","acos","atan","sinh","cosh","tanh","exp","ln","log","log10","abs","sqrt"};
+END;
+
+// Divide una expresion en piezas.
+// Devuelve {tipos,textos}: tipo 1 nombre, 2 numero, 0 simbolo.
+ExTok(sExp)
+BEGIN
+  LOCAL lCod,nLen,nPos,nCla,nIni,lTip,lTok,sTok;
+  LOCAL nCod,nSig,nAux,nExp,sMan,sPot,nSgn;
+  IF sExp=="" THEN RETURN {{},{}}; END;
+  lCod:=ASC(sExp);
+  nLen:=SIZE(lCod);
+  lTip:={};
+  lTok:={};
+  nPos:=1;
+  WHILE nPos<=nLen DO
+    nCod:=lCod(nPos);
+    nCla:=ExClase(nCod);
+    IF nCla==1 THEN
+      nIni:=nPos;
+      nSig:=1;
+      WHILE nSig DO
+        nPos:=nPos+1;
+        nSig:=0;
+        IF nPos<=nLen THEN
+          nAux:=ExClase(lCod(nPos));
+          IF nAux==1 OR nAux==2 THEN nSig:=1; END;
+        END;
+      END;
+      lTip:=CONCAT(lTip,{1});
+      lTok:=CONCAT(lTok,{UiMid(sExp,nIni,nPos-nIni)});
+    END;
+    IF nCla==2 OR nCla==3 THEN
+      nIni:=nPos;
+      nSig:=1;
+      WHILE nSig DO
+        nPos:=nPos+1;
+        nSig:=0;
+        IF nPos<=nLen THEN
+          nAux:=ExClase(lCod(nPos));
+          IF nAux==2 OR nAux==3 THEN nSig:=1; END;
+        END;
+      END;
+      sMan:=UiMid(sExp,nIni,nPos-nIni);
+      // exponente: 1.5e-3, 1.5E3 o con la tecla EEX
+      nExp:=0;
+      nSgn:=0;
+      IF nPos<nLen THEN
+        nCod:=lCod(nPos);
+        IF nCod==101 OR nCod==69 OR nCod==7431 THEN
+          nAux:=lCod(nPos+1);
+          IF nAux>=48 AND nAux<=57 THEN nExp:=nPos+1; END;
+          IF nAux==45 OR nAux==43 OR nAux==8722 THEN
+            IF nPos+1<nLen THEN
+              IF lCod(nPos+2)>=48 AND lCod(nPos+2)<=57 THEN
+                nExp:=nPos+2;
+                IF nAux<>43 THEN nSgn:=1; END;
+              END;
+            END;
+          END;
+        END;
+      END;
+      IF nExp>0 THEN
+        nPos:=nExp;
+        nSig:=1;
+        WHILE nSig DO
+          nPos:=nPos+1;
+          nSig:=0;
+          IF nPos<=nLen THEN
+            IF lCod(nPos)>=48 AND lCod(nPos)<=57 THEN nSig:=1; END;
+          END;
+        END;
+        sPot:=UiMid(sExp,nExp,nPos-nExp);
+        IF nSgn THEN sPot:="-"+sPot; END;
+        sMan:="("+sMan+"*10^("+sPot+"))";
+      END;
+      lTip:=CONCAT(lTip,{2});
+      lTok:=CONCAT(lTok,{sMan});
+    END;
+    IF nCla==0 THEN
+      IF nCod<>32 THEN
+        sTok:=UiMid(sExp,nPos,1);
+        IF nCod==8722 THEN sTok:="-"; END;
+        lTip:=CONCAT(lTip,{0});
+        lTok:=CONCAT(lTok,{sTok});
+      END;
+      nPos:=nPos+1;
+    END;
+  END;
+  RETURN {lTip,lTok};
+END;
+
+// Traduce una expresion escrita por el usuario.
+// nModo 0: para evaluar con numeros (variables lVar -> lDst).
+// nModo 1: para el CAS (todo en minusculas, lVar -> lDst opcional).
+// Si hay un nombre desconocido deja gBad en 1 y el nombre en gErr.
+ExComp(sExp,lVar,lDst,nModo)
+BEGIN
+  LOCAL lPar,lTip,lTok,nCnt,nIdx,sOut,sTok,nTip;
+  LOCAL sLow,nPos,nFun,sNxt,lFnA,lFnB,nDep,lRaiz;
+  LOCAL nHecho;
+  gBad:=0;
+  gErr:="";
+  lPar:=ExTok(sExp);
+  lTip:=lPar(1);
+  lTok:=lPar(2);
+  nCnt:=SIZE(lTip);
+  lFnA:=ExFunc();
+  lFnB:={"SIN","COS","TAN","ASIN","ACOS","ATAN","SINH","COSH","TANH","EXP","LN","LOG","LOG","ABS","sqrt"};
+  sOut:="";
+  nDep:=0;
+  lRaiz:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    nTip:=lTip(nIdx);
+    sTok:=lTok(nIdx);
+    sNxt:="";
+    IF nIdx<nCnt THEN sNxt:=lTok(nIdx+1); END;
+    IF nTip==2 THEN
+      sOut:=sOut+sTok;
+      IF nIdx<nCnt THEN
+        IF lTip(nIdx+1)==1 OR sNxt=="(" THEN sOut:=sOut+"*"; END;
+      END;
+    END;
+    IF nTip==1 THEN
+      sLow:=ExMin(sTok);
+      nPos:=UiPos(lVar,sLow);
+      nHecho:=0;
+      IF nModo==1 THEN
+        IF nPos>0 THEN
+          sOut:=sOut+lDst(nPos);
+        ELSE
+          IF sLow=="log" THEN sLow:="log10"; END;
+          sOut:=sOut+sLow;
+        END;
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        nFun:=UiPos(lFnA,sLow);
+        IF sNxt=="(" AND nFun>0 THEN
+          IF sLow=="sqrt" THEN
+            lRaiz:=CONCAT(lRaiz,{nDep+1});
+            sOut:=sOut+"(";
+          ELSE
+            sOut:=sOut+lFnB(nFun);
+          END;
+          nHecho:=1;
+        END;
+      END;
+      IF nHecho==0 AND nPos>0 THEN
+        sOut:=sOut+lDst(nPos);
+        IF sNxt=="(" THEN sOut:=sOut+"*"; END;
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        IF sLow=="pi" OR sLow==CHAR(960) THEN
+          sOut:=sOut+CHAR(960);
+          nHecho:=1;
+        END;
+      END;
+      IF nHecho==0 AND sLow=="e" THEN
+        sOut:=sOut+"EXP(1)";
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        gBad:=1;
+        gErr:=sTok;
+      END;
+    END;
+    IF nTip==0 THEN
+      IF sTok=="(" THEN nDep:=nDep+1; END;
+      sOut:=sOut+sTok;
+      IF sTok==")" THEN
+        IF SIZE(lRaiz)>0 THEN
+          IF lRaiz(SIZE(lRaiz))==nDep THEN
+            sOut:=sOut+"^0.5)";
+            lRaiz:=UiSinUlt(lRaiz);
+          END;
+        END;
+        nDep:=nDep-1;
+      END;
+    END;
+  END;
+  RETURN sOut;
+END;
+
+// Texto del usuario listo para el CAS.
+ExCasT(sExp)
+BEGIN
+  RETURN ExComp(sExp,{},{},1);
+END;
+
+// Lista de variables que aparecen en una expresion.
+ExVars(sExp)
+BEGIN
+  LOCAL lPar,lTip,lTok,nIdx,sLow,lOut,sNxt,lFnA;
+  LOCAL nCnt,nEs;
+  lPar:=ExTok(sExp);
+  lTip:=lPar(1);
+  lTok:=lPar(2);
+  nCnt:=SIZE(lTip);
+  lFnA:=ExFunc();
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    IF lTip(nIdx)==1 THEN
+      sLow:=ExMin(lTok(nIdx));
+      sNxt:="";
+      IF nIdx<nCnt THEN sNxt:=lTok(nIdx+1); END;
+      nEs:=1;
+      IF sNxt=="(" AND UiPos(lFnA,sLow)>0 THEN nEs:=0; END;
+      IF sLow=="pi" OR sLow=="e" OR sLow==CHAR(960) THEN nEs:=0; END;
+      IF UiPos(lOut,sLow)>0 THEN nEs:=0; END;
+      IF nEs THEN lOut:=CONCAT(lOut,{sLow}); END;
+    END;
+  END;
+  RETURN lOut;
+END;
+
+// Evalua gRes con X = nVal. Si falla deja gBad en 1.
+ExF(nVal)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  X:=nVal;
+  IFERR
+    vRes:=EXPR(gRes);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Evalua gRes con X = nVa, Y = nVb.
+ExF2(nVa,nVb)
+BEGIN
+  Y:=nVb;
+  RETURN ExF(nVa);
+END;
+
+// Valor numerico de un texto (por ejemplo "2*pi" o "1.5e-3").
+ExValor(sTxt)
+BEGIN
+  LOCAL sCmp,vRes,nMal;
+  sCmp:=ExComp(sTxt,{},{},0);
+  IF gBad THEN RETURN 0; END;
+  vRes:=0;
+  nMal:=0;
+  IFERR
+    vRes:=EXPR(sCmp);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    gErr:=sTxt;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Prepara gRes a partir de una funcion de x (y opcionalmente y).
+// Devuelve 1 si quedo lista.
+ExPrep(sExp,lVar,lDst)
+BEGIN
+  LOCAL lPar,sIzq,sDer;
+  lPar:=UiPartir(sExp,"=");
+  sIzq:=lPar(1);
+  sDer:="0";
+  IF SIZE(lPar)>=2 THEN sDer:=lPar(2); END;
+  gLhs:=ExComp(sIzq,lVar,lDst,0);
+  IF gBad THEN
+    UiAviso("No reconozco: "+gErr);
+    RETURN 0;
+  END;
+  gRhs:=ExComp(sDer,lVar,lDst,0);
+  IF gBad THEN
+    UiAviso("No reconozco: "+gErr);
+    RETURN 0;
+  END;
+  IF gLhs=="" OR gRhs=="" THEN
+    UiAviso("Falta escribir la función o un lado de la ecuación.");
+    RETURN 0;
+  END;
+  IF SIZE(lPar)>=2 THEN
+    gRes:="("+gLhs+")-("+gRhs+")";
+  ELSE
+    gRes:=gLhs;
+  END;
+  RETURN 1;
+END;
+
+// Tamano tipico de los dos lados de la ecuacion en X = nVal.
+ExEsc(nVal)
+BEGIN
+  LOCAL vIzq,vDer,nMal;
+  vIzq:=0;
+  vDer:=0;
+  nMal:=0;
+  X:=nVal;
+  IFERR
+    vIzq:=EXPR(gLhs);
+    vDer:=EXPR(gRhs);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN 0; END;
+  IF TYPE(vIzq)<>0 OR TYPE(vDer)<>0 THEN RETURN 0; END;
+  RETURN ABS(vIzq)+ABS(vDer);
+END;
+
+// Indica si nVal es una solucion: el residuo debe ser despreciable
+// frente al tamano de los dos lados de la ecuacion, o frente a nRef
+// (el valor tipico de la funcion lejos de la solucion).
+ExEsRaiz(nVal,nRef)
+BEGIN
+  LOCAL nFx,nEsc;
+  gBad:=0;
+  nFx:=ExF(nVal);
+  IF gBad THEN
+    gBad:=0;
+    RETURN 0;
+  END;
+  IF nFx==0 THEN RETURN 1; END;
+  nEsc:=ExEsc(nVal);
+  IF ABS(nFx)<=0.0000001*nEsc THEN RETURN 1; END;
+  IF ABS(nFx)<=0.000001*nRef THEN RETURN 1; END;
+  RETURN 0;
+END;
+
+// Metodo de la secante desde nSem. Si no llega deja gBad en 1.
+ExSecante(nSem)
+BEGIN
+  LOCAL nXa,nXb,nXc,nFa,nFb,nFc,nIt,nOk;
+  LOCAL nTry,nDen,nFin,nRef;
+  nXa:=nSem;
+  gBad:=0;
+  nFa:=ExF(nXa);
+  IF gBad THEN RETURN 0; END;
+  IF nFa==0 THEN RETURN nXa; END;
+  nXb:=nXa*1.02+0.0001;
+  nFb:=ExF(nXb);
+  IF gBad THEN RETURN 0; END;
+  nRef:=MAX(ABS(nFa),ABS(nFb));
+  nIt:=0;
+  nOk:=0;
+  nFin:=0;
+  WHILE nIt<60 AND nFin==0 DO
+    nIt:=nIt+1;
+    nDen:=nFb-nFa;
+    IF nDen==0 THEN
+      nFin:=1;
+    ELSE
+      nXc:=nXb-nFb*(nXb-nXa)/nDen;
+      gBad:=0;
+      nFc:=ExF(nXc);
+      nTry:=0;
+      WHILE gBad==1 AND nTry<8 DO
+        nXc:=(nXc+nXb)/2;
+        gBad:=0;
+        nFc:=ExF(nXc);
+        nTry:=nTry+1;
+      END;
+      IF gBad==1 THEN
+        nFin:=1;
+      ELSE
+        IF nFc==0 OR ABS(nXc-nXb)<=0.000000001*MAX(ABS(nXc),0.000001) THEN
+          nFin:=1;
+          nOk:=1;
+        END;
+        nXa:=nXb;
+        nFa:=nFb;
+        nXb:=nXc;
+        nFb:=nFc;
+      END;
+    END;
+  END;
+  IF nOk THEN
+    IF ExEsRaiz(nXb,nRef) THEN
+      gBad:=0;
+      RETURN nXb;
+    END;
+  END;
+  gBad:=1;
+  RETURN 0;
+END;
+
+// Biseccion entre nXa y nXb, donde la funcion cambia de signo.
+ExBisec(nXa,nXb,nFa,nFb)
+BEGIN
+  LOCAL nIzq,nDer,nFi,nMed,nFm,nIt,nRef;
+  nIzq:=nXa;
+  nDer:=nXb;
+  nFi:=nFa;
+  nRef:=MAX(ABS(nFa),ABS(nFb));
+  nIt:=0;
+  nMed:=(nIzq+nDer)/2;
+  WHILE nIt<70 AND ABS(nDer-nIzq)>0.00000000001*MAX(ABS(nIzq),ABS(nDer)) DO
+    nIt:=nIt+1;
+    nMed:=(nIzq+nDer)/2;
+    gBad:=0;
+    nFm:=ExF(nMed);
+    IF gBad THEN RETURN 0; END;
+    IF nFm==0 THEN
+      nIzq:=nMed;
+      nDer:=nMed;
+    ELSE
+      IF nFi*nFm<0 THEN
+        nDer:=nMed;
+      ELSE
+        nIzq:=nMed;
+        nFi:=nFm;
+      END;
+    END;
+  END;
+  nMed:=(nIzq+nDer)/2;
+  IF ExEsRaiz(nMed,nRef) THEN
+    gBad:=0;
+    RETURN nMed;
+  END;
+  gBad:=1;
+  RETURN 0;
+END;
+
+// Agrega nVal a la lista si no hay ya un valor igual.
+ExSuma(lRai,nVal)
+BEGIN
+  LOCAL nIdx;
+  FOR nIdx FROM 1 TO SIZE(lRai) DO
+    IF ABS(lRai(nIdx)-nVal)<=0.000001*MAX(ABS(nVal),0.000000000001) THEN
+      RETURN lRai;
+    END;
+  END;
+  RETURN CONCAT(lRai,{nVal});
+END;
+
+// Busca todas las soluciones reales de gRes = 0 que pueda encontrar.
+// Devuelve una lista; la primera es la mas razonable segun nIni
+// (positiva y del mismo orden de magnitud). Lista vacia: no hay.
+ExRaices(nIni)
+BEGIN
+  LOCAL lRai,nFa,nFb,nFc,nRef,nSol,lPos,nExp;
+  LOCAL nIdx,nCnt,nXa,nXb,nOka,nOkb,nKk,nTot;
+  LOCAL nMejor,nDis,nAct,lOut;
+  lRai:={};
+  // 1) caso lineal: se resuelve directo y se verifica
+  gBad:=0;
+  nFa:=ExF(0);
+  IF gBad==0 THEN
+    nFb:=ExF(1);
+    IF gBad==0 THEN
+      nFc:=ExF(2);
+      IF gBad==0 THEN
+        nRef:=ABS(nFa)+ABS(nFb)+ABS(nFc);
+        IF ABS(nFc-2*nFb+nFa)<=0.000000001*nRef AND nFb<>nFa THEN
+          nSol:=-nFa/(nFb-nFa);
+          IF ExEsRaiz(nSol,0) THEN
+            gBad:=0;
+            RETURN {nSol};
+          END;
+        END;
+      END;
+    END;
+  END;
+  // 2) secante desde el valor sugerido y desde 1
+  nSol:=ExSecante(nIni);
+  IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+  nSol:=ExSecante(1);
+  IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+  // 3) barrido: se buscan cambios de signo desde -10^30 hasta 10^30
+  lPos:={0.05,0.15,0.25,0.35,0.5,0.65,0.75,0.85,0.95,1.5,2,5,7};
+  FOR nExp FROM -12 TO 30 DO
+    lPos:=CONCAT(lPos,{10^nExp,3.16227766*10^nExp});
+  END;
+  lPos:=SORT(lPos);
+  nCnt:=SIZE(lPos);
+  nTot:=2*nCnt+1;
+  nOka:=0;
+  nXa:=0;
+  nFa:=0;
+  FOR nKk FROM 1 TO nTot DO
+    IF nKk<=nCnt THEN
+      nXb:=-lPos(nCnt+1-nKk);
+    ELSE
+      IF nKk==nCnt+1 THEN
+        nXb:=0;
+      ELSE
+        nXb:=lPos(nKk-nCnt-1);
+      END;
+    END;
+    gBad:=0;
+    nFb:=ExF(nXb);
+    nOkb:=1-gBad;
+    IF nOkb THEN
+      IF nFb==0 THEN
+        lRai:=ExSuma(lRai,nXb);
+      ELSE
+        IF nOka THEN
+          IF nFa*nFb<0 THEN
+            nSol:=ExBisec(nXa,nXb,nFa,nFb);
+            IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+          END;
+        END;
+      END;
+    END;
+    nOka:=nOkb;
+    IF nOkb THEN
+      IF nFb==0 THEN nOka:=0; END;
+    END;
+    nXa:=nXb;
+    nFa:=nFb;
+  END;
+  gBad:=0;
+  nCnt:=SIZE(lRai);
+  IF nCnt<=1 THEN RETURN lRai; END;
+  // 4) se elige la principal: positiva y cercana en magnitud a nIni
+  nMejor:=1;
+  nDis:=10^90;
+  FOR nIdx FROM 1 TO nCnt DO
+    nSol:=lRai(nIdx);
+    IF nSol>0 AND nIni>0 THEN
+      nAct:=ABS(LOG(nSol/nIni));
+    ELSE
+      nAct:=1000+ABS(nSol-nIni);
+    END;
+    IF nAct<nDis THEN
+      nDis:=nAct;
+      nMejor:=nIdx;
+    END;
+  END;
+  lOut:={lRai(nMejor)};
+  FOR nIdx FROM 1 TO nCnt DO
+    IF nIdx<>nMejor THEN lOut:=CONCAT(lOut,{lRai(nIdx)}); END;
+  END;
+  RETURN lOut;
+END;
+
+// Ejecuta un comando en el CAS y devuelve el resultado como texto.
+ExCas(sCmd)
+BEGIN
+  LOCAL sFull,vRes,nLen;
+  sFull:="string("+sCmd+")";
+  vRes:=sFull;
+  IFERR
+    vRes:=CAS(EVAL(sFull));
+  THEN
+    vRes:=sFull;
+  END;
+  IF TYPE(vRes)==2 THEN
+    IF vRes==sFull THEN
+      IFERR
+        vRes:=CAS.expr(sFull);
+      THEN
+        vRes:=sFull;
+      END;
+    END;
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  IF vRes==sFull THEN
+    IF gDepura==1 THEN RETURN "No se pudo calcular. Comando enviado al CAS: "+sCmd; END;
+    RETURN "No se pudo calcular.";
+  END;
+  nLen:=DIM(vRes);
+  IF nLen>=2 THEN
+    IF UiIzq(vRes,1)==CHAR(34) AND UiMid(vRes,nLen,1)==CHAR(34) THEN
+      vRes:=UiMid(vRes,2,nLen-2);
+    END;
+  END;
+  IF vRes=="" THEN RETURN "(sin resultado)"; END;
+  RETURN vRes;
+END;
+
+// Igual que ExCas, pero prueba un segundo comando si el primero falla.
+ExCas2(sCmdA,sCmdB)
+BEGIN
+  LOCAL sRes;
+  sRes:=ExCas(sCmdA);
+  IF UiEn(sRes,"rror")>0 OR UiEn(sRes,"No se pudo")>0 THEN
+    sRes:=ExCas(sCmdB);
+  END;
+  RETURN sRes;
+END;

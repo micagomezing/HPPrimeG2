@@ -1,0 +1,4797 @@
+#pragma mode( separator(.,;) integer(h32) )
+// =====================================================
+// ING 1.1  -  Menu visual de ingenieria para HP Prime G2
+// Matematica, ingenieria quimica y nuclear.
+//
+// Uso: crear un programa llamado ING, pegar todo este
+// texto, tocar Comprobar y ejecutar ING desde el catalogo.
+// Las funciones se escriben con las teclas normales; da
+// igual mayusculas o minusculas. Ver el cuadro Ayuda.
+// =====================================================
+
+LOCAL gRes,gLhs,gRhs,gBad,gErr,gAng,gMias,gSale;
+LOCAL gFun,gMenTit,gMenTop,gDepura,gMarca;
+
+// ---------- Utilidades generales ----------
+
+// Las funciones de texto de la calculadora no admiten bien los casos
+// limite (largo 0, posicion fuera del texto, texto vacio). Por eso
+// todo el programa las usa a traves de estos ayudantes.
+
+// Resto del texto desde la posicion nPos.
+UiResto(sTxt,nPos)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nPos>DIM(sTxt) THEN RETURN ""; END;
+  IF nPos<=1 THEN RETURN sTxt; END;
+  RETURN MID(sTxt,nPos);
+END;
+
+// Primeros nCnt caracteres.
+UiIzq(sTxt,nCnt)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nCnt<=0 THEN RETURN ""; END;
+  IF nCnt>=DIM(sTxt) THEN RETURN sTxt; END;
+  RETURN LEFT(sTxt,nCnt);
+END;
+
+// nLen caracteres desde la posicion nPos.
+UiMid(sTxt,nPos,nLen)
+BEGIN
+  IF sTxt=="" THEN RETURN ""; END;
+  IF nLen<=0 THEN RETURN ""; END;
+  IF nPos<1 THEN RETURN ""; END;
+  IF nPos>DIM(sTxt) THEN RETURN ""; END;
+  RETURN MID(sTxt,nPos,nLen);
+END;
+
+// Posicion de sBus dentro de sTxt, o 0 si no aparece.
+UiEn(sTxt,sBus)
+BEGIN
+  IF sTxt=="" THEN RETURN 0; END;
+  IF sBus=="" THEN RETURN 0; END;
+  RETURN INSTRING(sTxt,sBus);
+END;
+
+// Posicion de vVal en la lista, o 0 si no esta o la lista esta vacia.
+UiPos(lLis,vVal)
+BEGIN
+  IF SIZE(lLis)==0 THEN RETURN 0; END;
+  RETURN POS(lLis,vVal);
+END;
+
+UiSinUlt(lLis)
+BEGIN
+  LOCAL lOut,nIdx;
+  lOut:={};
+  FOR nIdx FROM 1 TO SIZE(lLis)-1 DO
+    lOut:=CONCAT(lOut,{lLis(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Separa un texto en partes usando un separador de 1 caracter.
+UiPartir(sTxt,sSep)
+BEGIN
+  LOCAL lOut,sRem,nPos;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  sRem:=sTxt;
+  nPos:=UiEn(sRem,sSep);
+  WHILE nPos>0 DO
+    lOut:=CONCAT(lOut,{UiIzq(sRem,nPos-1)});
+    sRem:=UiResto(sRem,nPos+1);
+    nPos:=UiEn(sRem,sSep);
+  END;
+  lOut:=CONCAT(lOut,{sRem});
+  RETURN lOut;
+END;
+
+// Separa por comas que no esten dentro de parentesis.
+UiComas(sTxt)
+BEGIN
+  LOCAL lOut,lCod,nIdx,nDep,nIni,nCod;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  lCod:=ASC(sTxt);
+  nDep:=0;
+  nIni:=1;
+  FOR nIdx FROM 1 TO SIZE(lCod) DO
+    nCod:=lCod(nIdx);
+    IF nCod==40 OR nCod==91 THEN nDep:=nDep+1; END;
+    IF nCod==41 OR nCod==93 THEN nDep:=nDep-1; END;
+    IF nCod==44 AND nDep==0 THEN
+      lOut:=CONCAT(lOut,{UiMid(sTxt,nIni,nIdx-nIni)});
+      nIni:=nIdx+1;
+    END;
+  END;
+  lOut:=CONCAT(lOut,{UiResto(sTxt,nIni)});
+  RETURN lOut;
+END;
+
+// Corta un texto largo en renglones de nAncho caracteres.
+UiCortar(sTxt,nAncho)
+BEGIN
+  LOCAL lOut,sRem,nCut,nIdx,nHit;
+  lOut:={};
+  IF sTxt=="" THEN RETURN {""}; END;
+  sRem:=sTxt;
+  WHILE DIM(sRem)>nAncho DO
+    nCut:=nAncho;
+    nIdx:=nAncho;
+    nHit:=0;
+    WHILE nIdx>nAncho-14 AND nHit==0 DO
+      IF UiEn(" +-*/,=)",UiMid(sRem,nIdx,1))>0 THEN
+        nCut:=nIdx;
+        nHit:=1;
+      END;
+      nIdx:=nIdx-1;
+    END;
+    lOut:=CONCAT(lOut,{UiIzq(sRem,nCut)});
+    sRem:=UiResto(sRem,nCut+1);
+  END;
+  lOut:=CONCAT(lOut,{sRem});
+  RETURN lOut;
+END;
+
+// Numero a texto con nDig cifras significativas.
+UiNum(nVal,nDig)
+BEGIN
+  LOCAL nAbs,nExp,nFac,nMan,sOut,nMal;
+  IF TYPE(nVal)<>0 THEN RETURN STRING(nVal); END;
+  IF nVal==0 THEN RETURN "0"; END;
+  sOut:="";
+  nMal:=0;
+  IFERR
+    nAbs:=ABS(nVal);
+    nExp:=FLOOR(LOG(nAbs));
+    IF nExp>=-4 AND nExp<=9 THEN
+      nFac:=10^(nDig-1-nExp);
+      sOut:=STRING(ROUND(nVal*nFac,0)/nFac);
+    ELSE
+      nMan:=nVal/10^nExp;
+      nFac:=10^(nDig-1);
+      nMan:=ROUND(nMan*nFac,0)/nFac;
+      IF ABS(nMan)>=10 THEN
+        nMan:=nMan/10;
+        nExp:=nExp+1;
+      END;
+      sOut:=STRING(nMan)+"E"+STRING(nExp);
+    END;
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN STRING(nVal); END;
+  RETURN sOut;
+END;
+
+// ---------- Pantalla ----------
+
+UiFondo(sTit)
+BEGIN
+  LOCAL sAng;
+  RECT_P(0,0,319,239,RGB(243,244,248),RGB(243,244,248));
+  RECT_P(0,0,319,24,RGB(24,48,88),RGB(24,48,88));
+  IF DIM(sTit)>27 THEN
+    TEXTOUT_P(sTit,8,7,2,RGB(255,255,255),274);
+  ELSE
+    TEXTOUT_P(sTit,8,4,4,RGB(255,255,255),274);
+  END;
+  sAng:="RAD";
+  IF gAng>1.5 THEN sAng:="DEG"; END;
+  IF gAng>60 THEN sAng:="GRA"; END;
+  TEXTOUT_P(sAng,288,8,1,RGB(150,190,240));
+END;
+
+UiCalc(sTit)
+BEGIN
+  UiFondo(sTit);
+  TEXTOUT_P("Calculando...",100,104,4,RGB(110,115,130));
+END;
+
+// Reloj interno en milisegundos, o -1 si no se pudo leer.
+UiReloj()
+BEGIN
+  LOCAL vRel,nMal;
+  vRel:=-1;
+  nMal:=0;
+  IFERR
+    vRel:=EXPR("TICKS");
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN -1; END;
+  IF TYPE(vRel)<>0 THEN RETURN -1; END;
+  RETURN vRel;
+END;
+
+// Se llama al cerrar un formulario o un aviso: durante un instante
+// se ignoran toques y teclas, para que el toque que cerro esa ventana
+// no accione tambien la pantalla siguiente.
+UiMarca()
+BEGIN
+  gMarca:=UiReloj();
+END;
+
+// Espera un toque o una tecla.
+// Devuelve {1,x,y} para un toque y {2,tecla,0} para una tecla.
+UiEspera()
+BEGIN
+  LOCAL vEvt,nFin,lOut,nAhora,nViejo;
+  nFin:=0;
+  lOut:={2,4,0};
+  REPEAT
+    vEvt:=WAIT(-1);
+    nViejo:=0;
+    nAhora:=UiReloj();
+    IF nAhora>=0 AND gMarca>=0 THEN
+      IF nAhora>=gMarca AND nAhora-gMarca<250 THEN nViejo:=1; END;
+    END;
+    IF nViejo==0 THEN
+      IF TYPE(vEvt)==6 THEN
+        IF SIZE(vEvt)>=3 THEN
+          IF vEvt(1)==3 THEN
+            lOut:={1,vEvt(2),vEvt(3)};
+            nFin:=1;
+          END;
+        END;
+      ELSE
+        IF vEvt>=0 THEN
+          lOut:={2,vEvt,0};
+          nFin:=1;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+  RETURN lOut;
+END;
+
+// Numero de boton inferior (1 a 6) segun la posicion x del toque.
+UiSoft(nPosX)
+BEGIN
+  RETURN MIN(IP(nPosX/53.4)+1,6);
+END;
+
+// Tecla numerica: devuelve 0 a 9, o -1 si no es un numero.
+UiDigito(nTec)
+BEGIN
+  RETURN UiPos({47,42,43,44,37,38,39,32,33,34},nTec)-1;
+END;
+
+UiAviso(sTxt)
+BEGIN
+  MSGBOX(sTxt);
+  UiMarca();
+END;
+
+// Visor de texto con paginas.
+// Cada renglon empieza con un caracter de estilo:
+//  "#" rotulo chico   " " texto normal   "!" resultado   "~" nota
+// lBot: rotulos de los 3 primeros botones. Devuelve 1 a 3, o 0 al volver.
+UiTexto(sTit,lLin,lBot)
+BEGIN
+  LOCAL lTxt,lSty,nIdx,nPte,sLin,sSty,lPar,nAncho;
+  LOCAL nTop,nRow,nPosY,nAlt,nFin,lEvt,nRet,nCnt;
+  LOCAL nNext,lPil,nSof,sAnt,sSig,nTec,nFnt,nCol;
+  LOCAL nNec;
+  lTxt:={};
+  lSty:={};
+  FOR nIdx FROM 1 TO SIZE(lLin) DO
+    sLin:=lLin(nIdx);
+    sSty:=" ";
+    IF sLin<>"" THEN
+      sSty:=UiIzq(sLin,1);
+      sLin:=UiResto(sLin,2);
+    END;
+    nAncho:=38;
+    IF sSty=="#" OR sSty=="~" THEN nAncho:=52; END;
+    IF sSty=="!" THEN nAncho:=32; END;
+    lPar:=UiCortar(sLin,nAncho);
+    FOR nPte FROM 1 TO SIZE(lPar) DO
+      lTxt:=CONCAT(lTxt,{lPar(nPte)});
+      lSty:=CONCAT(lSty,{sSty});
+    END;
+  END;
+  nCnt:=SIZE(lTxt);
+  nTop:=1;
+  lPil:={};
+  nFin:=0;
+  nRet:=0;
+  REPEAT
+    UiFondo(sTit);
+    nPosY:=29;
+    nRow:=nTop;
+    nNext:=nCnt+1;
+    WHILE nRow<=nCnt DO
+      sSty:=lSty(nRow);
+      sLin:=lTxt(nRow);
+      nAlt:=18;
+      nFnt:=3;
+      nCol:=RGB(20,20,30);
+      IF sSty=="#" THEN
+        nAlt:=14;
+        nFnt:=1;
+        nCol:=RGB(105,110,128);
+      END;
+      IF sSty=="~" THEN
+        nAlt:=13;
+        nFnt:=1;
+        nCol:=RGB(105,110,128);
+      END;
+      IF sSty=="!" THEN
+        nAlt:=21;
+        nFnt:=4;
+        nCol:=RGB(20,70,150);
+      END;
+      IF sLin=="" THEN nAlt:=6; END;
+      // un rotulo no se deja solo al pie: pasa a la pagina siguiente
+      nNec:=nAlt;
+      IF sSty=="#" AND nRow<nCnt THEN nNec:=nAlt+20; END;
+      IF nPosY+nNec>218 AND nRow>nTop THEN
+        nNext:=nRow;
+        nRow:=nCnt+1;
+      ELSE
+        IF sLin<>"" THEN
+          TEXTOUT_P(sLin,8,nPosY,nFnt,nCol,306);
+        END;
+        nPosY:=nPosY+nAlt;
+        nRow:=nRow+1;
+      END;
+    END;
+    sAnt:="";
+    sSig:="";
+    IF SIZE(lPil)>0 THEN sAnt:="Ant."; END;
+    IF nNext<=nCnt THEN sSig:="Sig."; END;
+    DRAWMENU(lBot(1),lBot(2),lBot(3),sAnt,sSig,"Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN nSof:=UiSoft(lEvt(2)); END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==30 OR nTec==19 THEN nSof:=6; END;
+    IF nTec==2 OR nTec==7 THEN nSof:=4; END;
+    IF nTec==12 OR nTec==8 THEN nSof:=5; END;
+    IF nSof>=1 AND nSof<=3 THEN
+      IF lBot(nSof)<>"" THEN
+        nRet:=nSof;
+        nFin:=1;
+      END;
+    END;
+    IF nSof==4 AND SIZE(lPil)>0 THEN
+      nTop:=lPil(SIZE(lPil));
+      lPil:=UiSinUlt(lPil);
+    END;
+    IF nSof==5 AND nNext<=nCnt THEN
+      lPil:=CONCAT(lPil,{nTop});
+      nTop:=nNext;
+    END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  RETURN nRet;
+END;
+
+UiVer(sTit,lLin)
+BEGIN
+  LOCAL nAux;
+  nAux:=UiTexto(sTit,lLin,{"","",""});
+END;
+
+// Menu de opciones en renglones tactiles. Devuelve la opcion o 0.
+UiMenu(sTit,lOpc,lSim)
+BEGIN
+  LOCAL nCnt,nTop,nIdx,nPosY,lEvt,nRet,nFin,nRow;
+  LOCAL sSig,sAnt,nSof,sSim,nTec,nDig,nMem;
+  nCnt:=SIZE(lOpc);
+  nTop:=1;
+  // si se vuelve al mismo menu, se abre en la pagina donde estaba
+  nMem:=UiPos(gMenTit,sTit);
+  IF nMem>0 THEN
+    nTop:=gMenTop(nMem);
+    IF nTop>nCnt THEN nTop:=1; END;
+  END;
+  nRet:=0;
+  nFin:=0;
+  REPEAT
+    UiFondo(sTit);
+    FOR nRow FROM 1 TO 7 DO
+      nIdx:=nTop+nRow-1;
+      IF nIdx<=nCnt THEN
+        nPosY:=28+(nRow-1)*27;
+        RECT_P(4,nPosY,315,nPosY+24,RGB(200,206,220),RGB(255,255,255));
+        RECT_P(4,nPosY,42,nPosY+24,RGB(31,95,160),RGB(31,95,160));
+        sSim:=STRING(nRow);
+        IF SIZE(lSim)>=nIdx THEN sSim:=lSim(nIdx); END;
+        TEXTOUT_P(sSim,8,nPosY+6,2,RGB(255,255,255),33);
+        IF DIM(lOpc(nIdx))>31 THEN
+          TEXTOUT_P(lOpc(nIdx),49,nPosY+6,2,RGB(20,20,30),264);
+        ELSE
+          TEXTOUT_P(lOpc(nIdx),49,nPosY+4,3,RGB(20,20,30),264);
+        END;
+      END;
+    END;
+    sAnt:="";
+    sSig:="";
+    IF nTop>1 THEN sAnt:="Ant."; END;
+    IF nTop+7<=nCnt THEN sSig:="Sig."; END;
+    DRAWMENU("","","",sAnt,sSig,"Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    nRow:=0;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=28 THEN nRow:=IP((lEvt(3)-28)/27)+1; END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+      nDig:=UiDigito(nTec);
+      IF nDig>=1 AND nDig<=7 THEN nRow:=nDig; END;
+    END;
+    IF nTec==4 OR nTec==19 THEN nSof:=6; END;
+    IF nTec==2 OR nTec==7 THEN nSof:=4; END;
+    IF nTec==12 OR nTec==8 THEN nSof:=5; END;
+    IF nRow>=1 AND nRow<=7 THEN
+      nIdx:=nTop+nRow-1;
+      IF nIdx<=nCnt THEN
+        nRet:=nIdx;
+        nFin:=1;
+      END;
+    END;
+    IF nSof==4 AND nTop>1 THEN nTop:=nTop-7; END;
+    IF nSof==5 AND nTop+7<=nCnt THEN nTop:=nTop+7; END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  IF nRet==0 THEN nTop:=1; END;
+  IF nMem>0 THEN
+    gMenTop(nMem):=nTop;
+  ELSE
+    IF SIZE(gMenTit)>=40 THEN
+      gMenTit:={};
+      gMenTop:={};
+    END;
+    gMenTit:=CONCAT(gMenTit,{sTit});
+    gMenTop:=CONCAT(gMenTop,{nTop});
+  END;
+  RETURN nRet;
+END;
+
+// ---------- Formularios ----------
+
+// Hasta 6 campos numericos. Devuelve la lista de valores o {}.
+UiFormN(sTit,lLab,lAyu,lIni)
+BEGIN
+  LOCAL nCnt,nRes,nVa,nVb,nVc,nVd,nVe,nVf;
+  LOCAL lAll,lOut,nIdx;
+  nCnt:=SIZE(lLab);
+  nRes:=0;
+  nVa:=0; nVb:=0; nVc:=0; nVd:=0; nVe:=0; nVf:=0;
+  IF nCnt>=1 THEN nVa:=lIni(1); END;
+  IF nCnt>=2 THEN nVb:=lIni(2); END;
+  IF nCnt>=3 THEN nVc:=lIni(3); END;
+  IF nCnt>=4 THEN nVd:=lIni(4); END;
+  IF nCnt>=5 THEN nVe:=lIni(5); END;
+  IF nCnt>=6 THEN nVf:=lIni(6); END;
+  IF nCnt==1 THEN
+    nRes:=INPUT({{nVa,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==2 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==3 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==4 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==5 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]},{nVe,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==6 THEN
+    nRes:=INPUT({{nVa,[0]},{nVb,[0]},{nVc,[0]},{nVd,[0]},{nVe,[0]},{nVf,[0]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  UiMarca();
+  IF nRes==0 THEN RETURN {}; END;
+  lAll:={nVa,nVb,nVc,nVd,nVe,nVf};
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lOut:=CONCAT(lOut,{lAll(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Hasta 6 campos de texto. Devuelve la lista de textos o {}.
+UiFormT(sTit,lLab,lAyu,lIni)
+BEGIN
+  LOCAL nCnt,nRes,sTxA,sTxB,sTxC,sTxD,sTxE,sTxF;
+  LOCAL lAll,lOut,nIdx;
+  nCnt:=SIZE(lLab);
+  nRes:=0;
+  sTxA:=""; sTxB:=""; sTxC:=""; sTxD:=""; sTxE:=""; sTxF:="";
+  IF nCnt>=1 THEN sTxA:=lIni(1); END;
+  IF nCnt>=2 THEN sTxB:=lIni(2); END;
+  IF nCnt>=3 THEN sTxC:=lIni(3); END;
+  IF nCnt>=4 THEN sTxD:=lIni(4); END;
+  IF nCnt>=5 THEN sTxE:=lIni(5); END;
+  IF nCnt>=6 THEN sTxF:=lIni(6); END;
+  IF nCnt==1 THEN
+    nRes:=INPUT({{sTxA,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==2 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==3 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==4 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==5 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]},{sTxE,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  IF nCnt==6 THEN
+    nRes:=INPUT({{sTxA,[2]},{sTxB,[2]},{sTxC,[2]},{sTxD,[2]},{sTxE,[2]},{sTxF,[2]}},sTit,lLab,lAyu,lIni,lIni);
+  END;
+  UiMarca();
+  IF nRes==0 THEN RETURN {}; END;
+  lAll:={sTxA,sTxB,sTxC,sTxD,sTxE,sTxF};
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lOut:=CONCAT(lOut,{lAll(nIdx)});
+  END;
+  RETURN lOut;
+END;
+
+// Formulario con cualquier cantidad de campos: lo reparte en
+// pantallas de hasta 6. nTipo 0 = numeros, 1 = textos.
+UiPedir(sTit,lLab,lAyu,lIni,nTipo)
+BEGIN
+  LOCAL nCnt,nIni,nFin,lOut,lPar,nIdx,lLb,lAy;
+  LOCAL lIn,sTt,nTot,nTam,nPag;
+  nCnt:=SIZE(lLab);
+  lOut:={};
+  IF nCnt==0 THEN RETURN {0}; END;
+  nTot:=CEILING(nCnt/6);
+  nTam:=CEILING(nCnt/nTot);
+  nIni:=1;
+  nPag:=1;
+  WHILE nIni<=nCnt DO
+    nFin:=MIN(nIni+nTam-1,nCnt);
+    lLb:={};
+    lAy:={};
+    lIn:={};
+    FOR nIdx FROM nIni TO nFin DO
+      lLb:=CONCAT(lLb,{lLab(nIdx)});
+      lAy:=CONCAT(lAy,{lAyu(nIdx)});
+      lIn:=CONCAT(lIn,{lIni(nIdx)});
+    END;
+    sTt:=sTit;
+    IF nTot>1 THEN
+      sTt:=sTit+" ("+STRING(nPag)+"/"+STRING(nTot)+")";
+    END;
+    IF nTipo==0 THEN
+      lPar:=UiFormN(sTt,lLb,lAy,lIn);
+    ELSE
+      lPar:=UiFormT(sTt,lLb,lAy,lIn);
+    END;
+    IF SIZE(lPar)==0 THEN RETURN {}; END;
+    lOut:=CONCAT(lOut,lPar);
+    nIni:=nFin+1;
+    nPag:=nPag+1;
+  END;
+  RETURN lOut;
+END;
+
+// ---------- Motor de expresiones ----------
+
+// Clase de caracter: 1 letra, 2 digito, 3 punto, 0 otro.
+ExClase(nCod)
+BEGIN
+  IF nCod>=97 AND nCod<=122 THEN RETURN 1; END;
+  IF nCod>=65 AND nCod<=90 THEN RETURN 1; END;
+  IF nCod==95 THEN RETURN 1; END;
+  IF nCod>=913 AND nCod<=969 THEN RETURN 1; END;
+  IF nCod>=48 AND nCod<=57 THEN RETURN 2; END;
+  IF nCod==46 THEN RETURN 3; END;
+  RETURN 0;
+END;
+
+// Pasa las letras A-Z a minusculas.
+ExMin(sTxt)
+BEGIN
+  LOCAL lCod,nIdx;
+  IF sTxt=="" THEN RETURN ""; END;
+  lCod:=ASC(sTxt);
+  FOR nIdx FROM 1 TO SIZE(lCod) DO
+    IF lCod(nIdx)>=65 AND lCod(nIdx)<=90 THEN
+      lCod(nIdx):=lCod(nIdx)+32;
+    END;
+  END;
+  IF SIZE(lCod)==0 THEN RETURN ""; END;
+  RETURN CHAR(lCod);
+END;
+
+ExFunc()
+BEGIN
+  RETURN {"sin","cos","tan","asin","acos","atan","sinh","cosh","tanh","exp","ln","log","log10","abs","sqrt"};
+END;
+
+// Divide una expresion en piezas.
+// Devuelve {tipos,textos}: tipo 1 nombre, 2 numero, 0 simbolo.
+ExTok(sExp)
+BEGIN
+  LOCAL lCod,nLen,nPos,nCla,nIni,lTip,lTok,sTok;
+  LOCAL nCod,nSig,nAux,nExp,sMan,sPot,nSgn;
+  IF sExp=="" THEN RETURN {{},{}}; END;
+  lCod:=ASC(sExp);
+  nLen:=SIZE(lCod);
+  lTip:={};
+  lTok:={};
+  nPos:=1;
+  WHILE nPos<=nLen DO
+    nCod:=lCod(nPos);
+    nCla:=ExClase(nCod);
+    IF nCla==1 THEN
+      nIni:=nPos;
+      nSig:=1;
+      WHILE nSig DO
+        nPos:=nPos+1;
+        nSig:=0;
+        IF nPos<=nLen THEN
+          nAux:=ExClase(lCod(nPos));
+          IF nAux==1 OR nAux==2 THEN nSig:=1; END;
+        END;
+      END;
+      lTip:=CONCAT(lTip,{1});
+      lTok:=CONCAT(lTok,{UiMid(sExp,nIni,nPos-nIni)});
+    END;
+    IF nCla==2 OR nCla==3 THEN
+      nIni:=nPos;
+      nSig:=1;
+      WHILE nSig DO
+        nPos:=nPos+1;
+        nSig:=0;
+        IF nPos<=nLen THEN
+          nAux:=ExClase(lCod(nPos));
+          IF nAux==2 OR nAux==3 THEN nSig:=1; END;
+        END;
+      END;
+      sMan:=UiMid(sExp,nIni,nPos-nIni);
+      // exponente: 1.5e-3, 1.5E3 o con la tecla EEX
+      nExp:=0;
+      nSgn:=0;
+      IF nPos<nLen THEN
+        nCod:=lCod(nPos);
+        IF nCod==101 OR nCod==69 OR nCod==7431 THEN
+          nAux:=lCod(nPos+1);
+          IF nAux>=48 AND nAux<=57 THEN nExp:=nPos+1; END;
+          IF nAux==45 OR nAux==43 OR nAux==8722 THEN
+            IF nPos+1<nLen THEN
+              IF lCod(nPos+2)>=48 AND lCod(nPos+2)<=57 THEN
+                nExp:=nPos+2;
+                IF nAux<>43 THEN nSgn:=1; END;
+              END;
+            END;
+          END;
+        END;
+      END;
+      IF nExp>0 THEN
+        nPos:=nExp;
+        nSig:=1;
+        WHILE nSig DO
+          nPos:=nPos+1;
+          nSig:=0;
+          IF nPos<=nLen THEN
+            IF lCod(nPos)>=48 AND lCod(nPos)<=57 THEN nSig:=1; END;
+          END;
+        END;
+        sPot:=UiMid(sExp,nExp,nPos-nExp);
+        IF nSgn THEN sPot:="-"+sPot; END;
+        sMan:="("+sMan+"*10^("+sPot+"))";
+      END;
+      lTip:=CONCAT(lTip,{2});
+      lTok:=CONCAT(lTok,{sMan});
+    END;
+    IF nCla==0 THEN
+      IF nCod<>32 THEN
+        sTok:=UiMid(sExp,nPos,1);
+        IF nCod==8722 THEN sTok:="-"; END;
+        lTip:=CONCAT(lTip,{0});
+        lTok:=CONCAT(lTok,{sTok});
+      END;
+      nPos:=nPos+1;
+    END;
+  END;
+  RETURN {lTip,lTok};
+END;
+
+// Traduce una expresion escrita por el usuario.
+// nModo 0: para evaluar con numeros (variables lVar -> lDst).
+// nModo 1: para el CAS (todo en minusculas, lVar -> lDst opcional).
+// Si hay un nombre desconocido deja gBad en 1 y el nombre en gErr.
+ExComp(sExp,lVar,lDst,nModo)
+BEGIN
+  LOCAL lPar,lTip,lTok,nCnt,nIdx,sOut,sTok,nTip;
+  LOCAL sLow,nPos,nFun,sNxt,lFnA,lFnB,nDep,lRaiz;
+  LOCAL nHecho;
+  gBad:=0;
+  gErr:="";
+  lPar:=ExTok(sExp);
+  lTip:=lPar(1);
+  lTok:=lPar(2);
+  nCnt:=SIZE(lTip);
+  lFnA:=ExFunc();
+  lFnB:={"SIN","COS","TAN","ASIN","ACOS","ATAN","SINH","COSH","TANH","EXP","LN","LOG","LOG","ABS","sqrt"};
+  sOut:="";
+  nDep:=0;
+  lRaiz:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    nTip:=lTip(nIdx);
+    sTok:=lTok(nIdx);
+    sNxt:="";
+    IF nIdx<nCnt THEN sNxt:=lTok(nIdx+1); END;
+    IF nTip==2 THEN
+      sOut:=sOut+sTok;
+      IF nIdx<nCnt THEN
+        IF lTip(nIdx+1)==1 OR sNxt=="(" THEN sOut:=sOut+"*"; END;
+      END;
+    END;
+    IF nTip==1 THEN
+      sLow:=ExMin(sTok);
+      nPos:=UiPos(lVar,sLow);
+      nHecho:=0;
+      IF nModo==1 THEN
+        IF nPos>0 THEN
+          sOut:=sOut+lDst(nPos);
+        ELSE
+          IF sLow=="log" THEN sLow:="log10"; END;
+          sOut:=sOut+sLow;
+        END;
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        nFun:=UiPos(lFnA,sLow);
+        IF sNxt=="(" AND nFun>0 THEN
+          IF sLow=="sqrt" THEN
+            lRaiz:=CONCAT(lRaiz,{nDep+1});
+            sOut:=sOut+"(";
+          ELSE
+            sOut:=sOut+lFnB(nFun);
+          END;
+          nHecho:=1;
+        END;
+      END;
+      IF nHecho==0 AND nPos>0 THEN
+        sOut:=sOut+lDst(nPos);
+        IF sNxt=="(" THEN sOut:=sOut+"*"; END;
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        IF sLow=="pi" OR sLow==CHAR(960) THEN
+          sOut:=sOut+CHAR(960);
+          nHecho:=1;
+        END;
+      END;
+      IF nHecho==0 AND sLow=="e" THEN
+        sOut:=sOut+"EXP(1)";
+        nHecho:=1;
+      END;
+      IF nHecho==0 THEN
+        gBad:=1;
+        gErr:=sTok;
+      END;
+    END;
+    IF nTip==0 THEN
+      IF sTok=="(" THEN nDep:=nDep+1; END;
+      sOut:=sOut+sTok;
+      IF sTok==")" THEN
+        IF SIZE(lRaiz)>0 THEN
+          IF lRaiz(SIZE(lRaiz))==nDep THEN
+            sOut:=sOut+"^0.5)";
+            lRaiz:=UiSinUlt(lRaiz);
+          END;
+        END;
+        nDep:=nDep-1;
+      END;
+    END;
+  END;
+  RETURN sOut;
+END;
+
+// Texto del usuario listo para el CAS.
+ExCasT(sExp)
+BEGIN
+  RETURN ExComp(sExp,{},{},1);
+END;
+
+// Lista de variables que aparecen en una expresion.
+ExVars(sExp)
+BEGIN
+  LOCAL lPar,lTip,lTok,nIdx,sLow,lOut,sNxt,lFnA;
+  LOCAL nCnt,nEs;
+  lPar:=ExTok(sExp);
+  lTip:=lPar(1);
+  lTok:=lPar(2);
+  nCnt:=SIZE(lTip);
+  lFnA:=ExFunc();
+  lOut:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    IF lTip(nIdx)==1 THEN
+      sLow:=ExMin(lTok(nIdx));
+      sNxt:="";
+      IF nIdx<nCnt THEN sNxt:=lTok(nIdx+1); END;
+      nEs:=1;
+      IF sNxt=="(" AND UiPos(lFnA,sLow)>0 THEN nEs:=0; END;
+      IF sLow=="pi" OR sLow=="e" OR sLow==CHAR(960) THEN nEs:=0; END;
+      IF UiPos(lOut,sLow)>0 THEN nEs:=0; END;
+      IF nEs THEN lOut:=CONCAT(lOut,{sLow}); END;
+    END;
+  END;
+  RETURN lOut;
+END;
+
+// Evalua gRes con X = nVal. Si falla deja gBad en 1.
+ExF(nVal)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  X:=nVal;
+  IFERR
+    vRes:=EXPR(gRes);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Evalua gRes con X = nVa, Y = nVb.
+ExF2(nVa,nVb)
+BEGIN
+  Y:=nVb;
+  RETURN ExF(nVa);
+END;
+
+// Valor numerico de un texto (por ejemplo "2*pi" o "1.5e-3").
+ExValor(sTxt)
+BEGIN
+  LOCAL sCmp,vRes,nMal;
+  sCmp:=ExComp(sTxt,{},{},0);
+  IF gBad THEN RETURN 0; END;
+  vRes:=0;
+  nMal:=0;
+  IFERR
+    vRes:=EXPR(sCmp);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    gErr:=sTxt;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Prepara gRes a partir de una funcion de x (y opcionalmente y).
+// Devuelve 1 si quedo lista.
+ExPrep(sExp,lVar,lDst)
+BEGIN
+  LOCAL lPar,sIzq,sDer;
+  lPar:=UiPartir(sExp,"=");
+  sIzq:=lPar(1);
+  sDer:="0";
+  IF SIZE(lPar)>=2 THEN sDer:=lPar(2); END;
+  gLhs:=ExComp(sIzq,lVar,lDst,0);
+  IF gBad THEN
+    UiAviso("No reconozco: "+gErr);
+    RETURN 0;
+  END;
+  gRhs:=ExComp(sDer,lVar,lDst,0);
+  IF gBad THEN
+    UiAviso("No reconozco: "+gErr);
+    RETURN 0;
+  END;
+  IF gLhs=="" OR gRhs=="" THEN
+    UiAviso("Falta escribir la función o un lado de la ecuación.");
+    RETURN 0;
+  END;
+  IF SIZE(lPar)>=2 THEN
+    gRes:="("+gLhs+")-("+gRhs+")";
+  ELSE
+    gRes:=gLhs;
+  END;
+  RETURN 1;
+END;
+
+// Tamano tipico de los dos lados de la ecuacion en X = nVal.
+ExEsc(nVal)
+BEGIN
+  LOCAL vIzq,vDer,nMal;
+  vIzq:=0;
+  vDer:=0;
+  nMal:=0;
+  X:=nVal;
+  IFERR
+    vIzq:=EXPR(gLhs);
+    vDer:=EXPR(gRhs);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN RETURN 0; END;
+  IF TYPE(vIzq)<>0 OR TYPE(vDer)<>0 THEN RETURN 0; END;
+  RETURN ABS(vIzq)+ABS(vDer);
+END;
+
+// Indica si nVal es una solucion: el residuo debe ser despreciable
+// frente al tamano de los dos lados de la ecuacion, o frente a nRef
+// (el valor tipico de la funcion lejos de la solucion).
+ExEsRaiz(nVal,nRef)
+BEGIN
+  LOCAL nFx,nEsc;
+  gBad:=0;
+  nFx:=ExF(nVal);
+  IF gBad THEN
+    gBad:=0;
+    RETURN 0;
+  END;
+  IF nFx==0 THEN RETURN 1; END;
+  nEsc:=ExEsc(nVal);
+  IF ABS(nFx)<=0.0000001*nEsc THEN RETURN 1; END;
+  IF ABS(nFx)<=0.000001*nRef THEN RETURN 1; END;
+  RETURN 0;
+END;
+
+// Metodo de la secante desde nSem. Si no llega deja gBad en 1.
+ExSecante(nSem)
+BEGIN
+  LOCAL nXa,nXb,nXc,nFa,nFb,nFc,nIt,nOk;
+  LOCAL nTry,nDen,nFin,nRef;
+  nXa:=nSem;
+  gBad:=0;
+  nFa:=ExF(nXa);
+  IF gBad THEN RETURN 0; END;
+  IF nFa==0 THEN RETURN nXa; END;
+  nXb:=nXa*1.02+0.0001;
+  nFb:=ExF(nXb);
+  IF gBad THEN RETURN 0; END;
+  nRef:=MAX(ABS(nFa),ABS(nFb));
+  nIt:=0;
+  nOk:=0;
+  nFin:=0;
+  WHILE nIt<60 AND nFin==0 DO
+    nIt:=nIt+1;
+    nDen:=nFb-nFa;
+    IF nDen==0 THEN
+      nFin:=1;
+    ELSE
+      nXc:=nXb-nFb*(nXb-nXa)/nDen;
+      gBad:=0;
+      nFc:=ExF(nXc);
+      nTry:=0;
+      WHILE gBad==1 AND nTry<8 DO
+        nXc:=(nXc+nXb)/2;
+        gBad:=0;
+        nFc:=ExF(nXc);
+        nTry:=nTry+1;
+      END;
+      IF gBad==1 THEN
+        nFin:=1;
+      ELSE
+        IF nFc==0 OR ABS(nXc-nXb)<=0.000000001*MAX(ABS(nXc),0.000001) THEN
+          nFin:=1;
+          nOk:=1;
+        END;
+        nXa:=nXb;
+        nFa:=nFb;
+        nXb:=nXc;
+        nFb:=nFc;
+      END;
+    END;
+  END;
+  IF nOk THEN
+    IF ExEsRaiz(nXb,nRef) THEN
+      gBad:=0;
+      RETURN nXb;
+    END;
+  END;
+  gBad:=1;
+  RETURN 0;
+END;
+
+// Biseccion entre nXa y nXb, donde la funcion cambia de signo.
+ExBisec(nXa,nXb,nFa,nFb)
+BEGIN
+  LOCAL nIzq,nDer,nFi,nMed,nFm,nIt,nRef;
+  nIzq:=nXa;
+  nDer:=nXb;
+  nFi:=nFa;
+  nRef:=MAX(ABS(nFa),ABS(nFb));
+  nIt:=0;
+  nMed:=(nIzq+nDer)/2;
+  WHILE nIt<70 AND ABS(nDer-nIzq)>0.00000000001*MAX(ABS(nIzq),ABS(nDer)) DO
+    nIt:=nIt+1;
+    nMed:=(nIzq+nDer)/2;
+    gBad:=0;
+    nFm:=ExF(nMed);
+    IF gBad THEN RETURN 0; END;
+    IF nFm==0 THEN
+      nIzq:=nMed;
+      nDer:=nMed;
+    ELSE
+      IF nFi*nFm<0 THEN
+        nDer:=nMed;
+      ELSE
+        nIzq:=nMed;
+        nFi:=nFm;
+      END;
+    END;
+  END;
+  nMed:=(nIzq+nDer)/2;
+  IF ExEsRaiz(nMed,nRef) THEN
+    gBad:=0;
+    RETURN nMed;
+  END;
+  gBad:=1;
+  RETURN 0;
+END;
+
+// Agrega nVal a la lista si no hay ya un valor igual.
+ExSuma(lRai,nVal)
+BEGIN
+  LOCAL nIdx;
+  FOR nIdx FROM 1 TO SIZE(lRai) DO
+    IF ABS(lRai(nIdx)-nVal)<=0.000001*MAX(ABS(nVal),0.000000000001) THEN
+      RETURN lRai;
+    END;
+  END;
+  RETURN CONCAT(lRai,{nVal});
+END;
+
+// Busca todas las soluciones reales de gRes = 0 que pueda encontrar.
+// Devuelve una lista; la primera es la mas razonable segun nIni
+// (positiva y del mismo orden de magnitud). Lista vacia: no hay.
+ExRaices(nIni)
+BEGIN
+  LOCAL lRai,nFa,nFb,nFc,nRef,nSol,lPos,nExp;
+  LOCAL nIdx,nCnt,nXa,nXb,nOka,nOkb,nKk,nTot;
+  LOCAL nMejor,nDis,nAct,lOut;
+  lRai:={};
+  // 1) caso lineal: se resuelve directo y se verifica
+  gBad:=0;
+  nFa:=ExF(0);
+  IF gBad==0 THEN
+    nFb:=ExF(1);
+    IF gBad==0 THEN
+      nFc:=ExF(2);
+      IF gBad==0 THEN
+        nRef:=ABS(nFa)+ABS(nFb)+ABS(nFc);
+        IF ABS(nFc-2*nFb+nFa)<=0.000000001*nRef AND nFb<>nFa THEN
+          nSol:=-nFa/(nFb-nFa);
+          IF ExEsRaiz(nSol,0) THEN
+            gBad:=0;
+            RETURN {nSol};
+          END;
+        END;
+      END;
+    END;
+  END;
+  // 2) secante desde el valor sugerido y desde 1
+  nSol:=ExSecante(nIni);
+  IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+  nSol:=ExSecante(1);
+  IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+  // 3) barrido: se buscan cambios de signo desde -10^30 hasta 10^30
+  lPos:={0.05,0.15,0.25,0.35,0.5,0.65,0.75,0.85,0.95,1.5,2,5,7};
+  FOR nExp FROM -12 TO 30 DO
+    lPos:=CONCAT(lPos,{10^nExp,3.16227766*10^nExp});
+  END;
+  lPos:=SORT(lPos);
+  nCnt:=SIZE(lPos);
+  nTot:=2*nCnt+1;
+  nOka:=0;
+  nXa:=0;
+  nFa:=0;
+  FOR nKk FROM 1 TO nTot DO
+    IF nKk<=nCnt THEN
+      nXb:=-lPos(nCnt+1-nKk);
+    ELSE
+      IF nKk==nCnt+1 THEN
+        nXb:=0;
+      ELSE
+        nXb:=lPos(nKk-nCnt-1);
+      END;
+    END;
+    gBad:=0;
+    nFb:=ExF(nXb);
+    nOkb:=1-gBad;
+    IF nOkb THEN
+      IF nFb==0 THEN
+        lRai:=ExSuma(lRai,nXb);
+      ELSE
+        IF nOka THEN
+          IF nFa*nFb<0 THEN
+            nSol:=ExBisec(nXa,nXb,nFa,nFb);
+            IF gBad==0 THEN lRai:=ExSuma(lRai,nSol); END;
+          END;
+        END;
+      END;
+    END;
+    nOka:=nOkb;
+    IF nOkb THEN
+      IF nFb==0 THEN nOka:=0; END;
+    END;
+    nXa:=nXb;
+    nFa:=nFb;
+  END;
+  gBad:=0;
+  nCnt:=SIZE(lRai);
+  IF nCnt<=1 THEN RETURN lRai; END;
+  // 4) se elige la principal: positiva y cercana en magnitud a nIni
+  nMejor:=1;
+  nDis:=10^90;
+  FOR nIdx FROM 1 TO nCnt DO
+    nSol:=lRai(nIdx);
+    IF nSol>0 AND nIni>0 THEN
+      nAct:=ABS(LOG(nSol/nIni));
+    ELSE
+      nAct:=1000+ABS(nSol-nIni);
+    END;
+    IF nAct<nDis THEN
+      nDis:=nAct;
+      nMejor:=nIdx;
+    END;
+  END;
+  lOut:={lRai(nMejor)};
+  FOR nIdx FROM 1 TO nCnt DO
+    IF nIdx<>nMejor THEN lOut:=CONCAT(lOut,{lRai(nIdx)}); END;
+  END;
+  RETURN lOut;
+END;
+
+// Ejecuta un comando en el CAS y devuelve el resultado como texto.
+ExCas(sCmd)
+BEGIN
+  LOCAL sFull,vRes,nLen;
+  sFull:="string("+sCmd+")";
+  vRes:=sFull;
+  IFERR
+    vRes:=CAS(EVAL(sFull));
+  THEN
+    vRes:=sFull;
+  END;
+  IF TYPE(vRes)==2 THEN
+    IF vRes==sFull THEN
+      IFERR
+        vRes:=CAS.expr(sFull);
+      THEN
+        vRes:=sFull;
+      END;
+    END;
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  IF vRes==sFull THEN
+    IF gDepura==1 THEN RETURN "No se pudo calcular. Comando enviado al CAS: "+sCmd; END;
+    RETURN "No se pudo calcular.";
+  END;
+  nLen:=DIM(vRes);
+  IF nLen>=2 THEN
+    IF UiIzq(vRes,1)==CHAR(34) AND UiMid(vRes,nLen,1)==CHAR(34) THEN
+      vRes:=UiMid(vRes,2,nLen-2);
+    END;
+  END;
+  IF vRes=="" THEN RETURN "(sin resultado)"; END;
+  RETURN vRes;
+END;
+
+// Igual que ExCas, pero prueba un segundo comando si el primero falla.
+ExCas2(sCmdA,sCmdB)
+BEGIN
+  LOCAL sRes;
+  sRes:=ExCas(sCmdA);
+  IF UiEn(sRes,"rror")>0 OR UiEn(sRes,"No se pudo")>0 THEN
+    sRes:=ExCas(sCmdB);
+  END;
+  RETURN sRes;
+END;
+
+// ---------- Graficos propios ----------
+
+// Evalua gRes en nPts+1 puntos entre nLimA y nLimB.
+// Devuelve {valores de x, valores de f, validez}.
+GrMuestra(nLimA,nLimB,nPts)
+BEGIN
+  LOCAL lVx,lVy,lOk,nIdx,nVal,nFx;
+  lVx:={};
+  lVy:={};
+  lOk:={};
+  FOR nIdx FROM 0 TO nPts DO
+    nVal:=nLimA+(nLimB-nLimA)*nIdx/nPts;
+    gBad:=0;
+    nFx:=ExF(nVal);
+    lVx:=CONCAT(lVx,{nVal});
+    lVy:=CONCAT(lVy,{nFx});
+    lOk:=CONCAT(lOk,{1-gBad});
+  END;
+  gBad:=0;
+  RETURN {lVx,lVy,lOk};
+END;
+
+// Rango vertical automatico. Recorta si hay asintotas.
+GrRangoY(lVy,lOk)
+BEGIN
+  LOCAL lVal,nIdx,nCnt,nLo,nHi,nPa,nPb,nMar;
+  LOCAL nBan,nSup,nInf,nTa,nTb;
+  lVal:={};
+  FOR nIdx FROM 1 TO SIZE(lVy) DO
+    IF lOk(nIdx) THEN lVal:=CONCAT(lVal,{lVy(nIdx)}); END;
+  END;
+  nCnt:=SIZE(lVal);
+  IF nCnt==0 THEN RETURN {-1,1}; END;
+  lVal:=SORT(lVal);
+  nLo:=lVal(1);
+  nHi:=lVal(nCnt);
+  // Si unos pocos valores son enormes frente al resto (asintota),
+  // se recorta ese lado para que la curva se pueda ver.
+  IF nCnt>=20 THEN
+    nPa:=lVal(IP(nCnt*0.1)+1);
+    nPb:=lVal(IP(nCnt*0.9));
+    nBan:=nPb-nPa;
+    IF nBan>0.000000001*(nHi-nLo) AND nHi-nLo>8*nBan THEN
+      nTa:=nPa-2*nBan;
+      nTb:=nPb+2*nBan;
+      nInf:=0;
+      nSup:=0;
+      FOR nIdx FROM 1 TO nCnt DO
+        IF lVal(nIdx)<nTa THEN nInf:=nInf+1; END;
+        IF lVal(nIdx)>nTb THEN nSup:=nSup+1; END;
+      END;
+      IF nInf>0 AND nInf<0.08*nCnt THEN nLo:=nTa; END;
+      IF nSup>0 AND nSup<0.08*nCnt THEN nHi:=nTb; END;
+    END;
+  END;
+  IF nHi==nLo THEN
+    nLo:=nLo-1;
+    nHi:=nHi+1;
+  END;
+  nMar:=(nHi-nLo)*0.06;
+  RETURN {nLo-nMar,nHi+nMar};
+END;
+
+// Dibuja la curva y = f(x) con ejes y rotulos.
+GrCart(sTit,lPar,nLimA,nLimB,nYa,nYb)
+BEGIN
+  LOCAL lVx,lVy,lOk,nIdx,nPxa,nPya,nPxb,nPyb;
+  LOCAL nSx,nSy,nEje,nOka,nCa,nCb;
+  lVx:=lPar(1);
+  lVy:=lPar(2);
+  lOk:=lPar(3);
+  UiFondo(sTit);
+  RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+  nSx:=308/(nLimB-nLimA);
+  nSy:=158/(nYb-nYa);
+  FOR nIdx FROM 1 TO 3 DO
+    LINE_P(6+nIdx*77,29,6+nIdx*77,185,RGB(232,235,242));
+    LINE_P(7,IP(28+nIdx*39.5),313,IP(28+nIdx*39.5),RGB(232,235,242));
+  END;
+  IF nYa<0 AND nYb>0 THEN
+    nEje:=IP(186+nYa*nSy);
+    LINE_P(7,nEje,313,nEje,RGB(120,125,140));
+  END;
+  IF nLimA<0 AND nLimB>0 THEN
+    nEje:=IP(6-nLimA*nSx);
+    LINE_P(nEje,29,nEje,185,RGB(120,125,140));
+  END;
+  nOka:=0;
+  nPxa:=0;
+  nPya:=0;
+  FOR nIdx FROM 1 TO SIZE(lVx) DO
+    IF lOk(nIdx) THEN
+      nPxb:=IP(6+(lVx(nIdx)-nLimA)*nSx);
+      nPyb:=186-(lVy(nIdx)-nYa)*nSy;
+      IF nOka THEN
+        IF (nPya>=28 OR nPyb>=28) AND (nPya<=186 OR nPyb<=186) THEN
+          IF ABS(nPyb-nPya)<240 THEN
+            nCa:=IP(MAX(29,MIN(185,nPya)));
+            nCb:=IP(MAX(29,MIN(185,nPyb)));
+            LINE_P(nPxa,nCa,nPxb,nCb,RGB(200,50,40));
+            LINE_P(nPxa,nCa+1,nPxb,nCb+1,RGB(200,50,40));
+          END;
+        END;
+      END;
+      nPxa:=nPxb;
+      nPya:=nPyb;
+      nOka:=1;
+    ELSE
+      nOka:=0;
+    END;
+  END;
+  TEXTOUT_P(UiNum(nYb,4),9,30,1,RGB(90,95,110));
+  TEXTOUT_P(UiNum(nYa,4),9,173,1,RGB(90,95,110));
+  TEXTOUT_P("x de "+UiNum(nLimA,4)+" a "+UiNum(nLimB,4),8,188,1,RGB(90,95,110));
+END;
+
+// Dibuja r = f(angulo). lPar = {angulos, radios, validez}.
+// Devuelve la escala usada (pixeles por unidad).
+GrPolar(sTit,lPar,nZoom)
+BEGIN
+  LOCAL lVt,lVr,lOk,nIdx,nRmax,nEsc,nPxa,nPya;
+  LOCAL nPxb,nPyb,nOka,nAng,nRad,nCir;
+  lVt:=lPar(1);
+  lVr:=lPar(2);
+  lOk:=lPar(3);
+  nRmax:=0;
+  FOR nIdx FROM 1 TO SIZE(lVr) DO
+    IF lOk(nIdx) THEN nRmax:=MAX(nRmax,ABS(lVr(nIdx))); END;
+  END;
+  IF nRmax==0 THEN nRmax:=1; END;
+  nRmax:=nRmax/nZoom;
+  nEsc:=76/nRmax;
+  UiFondo(sTit);
+  RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+  // circulos de referencia en r max y r max / 2
+  FOR nCir FROM 1 TO 2 DO
+    nRad:=38*nCir;
+    nPxa:=160+nRad;
+    nPya:=107;
+    FOR nIdx FROM 1 TO 48 DO
+      nAng:=nIdx*0.130899693899575;
+      nPxb:=IP(160+nRad*COS(nAng*gAng));
+      nPyb:=IP(107-nRad*SIN(nAng*gAng));
+      LINE_P(nPxa,nPya,nPxb,nPyb,RGB(225,229,238));
+      nPxa:=nPxb;
+      nPya:=nPyb;
+    END;
+  END;
+  LINE_P(7,107,313,107,RGB(150,155,170));
+  LINE_P(160,29,160,185,RGB(150,155,170));
+  nOka:=0;
+  nPxa:=0;
+  nPya:=0;
+  FOR nIdx FROM 1 TO SIZE(lVt) DO
+    IF lOk(nIdx) THEN
+      nPxb:=160+lVr(nIdx)*COS(lVt(nIdx))*nEsc;
+      nPyb:=107-lVr(nIdx)*SIN(lVt(nIdx))*nEsc;
+      IF nOka THEN
+        IF ABS(nPxb-160)<154 AND ABS(nPyb-107)<79 THEN
+          IF ABS(nPxa-160)<154 AND ABS(nPya-107)<79 THEN
+            LINE_P(IP(nPxa),IP(nPya),IP(nPxb),IP(nPyb),RGB(200,50,40));
+            LINE_P(IP(nPxa),IP(nPya)+1,IP(nPxb),IP(nPyb)+1,RGB(200,50,40));
+          END;
+        END;
+      END;
+      nPxa:=nPxb;
+      nPya:=nPyb;
+      nOka:=1;
+    ELSE
+      nOka:=0;
+    END;
+  END;
+  TEXTOUT_P("r = "+UiNum(nRmax,4),238,96,1,RGB(90,95,110));
+  TEXTOUT_P("Círculos en r = "+UiNum(nRmax/2,4)+" y "+UiNum(nRmax,4),8,188,1,RGB(90,95,110));
+  RETURN nEsc;
+END;
+
+// Pantalla de grafico con zoom, rango y lectura al tocar.
+// nModo 0: y = f(x).  nModo 1: polar r = f(angulo).
+UiGraf(sTit,nModo,nIniA,nIniB)
+BEGIN
+  LOCAL nLimA,nLimB,nYa,nYb,nFin,lEvt,nSof,lPar;
+  LOCAL lRan,nTec,nCen,nAnc,lDat,nRec,nLeeX,nLeeY;
+  LOCAL nHay,sLec,nManual,nPx,nPy,nZoom,nEsc,nIdx;
+  LOCAL nMejor,nDis,nDx,nDy,lVt,lVr,lOk,nTx;
+  nLimA:=nIniA;
+  nLimB:=nIniB;
+  nFin:=0;
+  nRec:=1;
+  nHay:=0;
+  nManual:=0;
+  nZoom:=1;
+  nYa:=-1;
+  nYb:=1;
+  nEsc:=1;
+  nLeeX:=0;
+  nLeeY:=0;
+  REPEAT
+    IF nRec THEN
+      UiCalc(sTit);
+      IF nModo==0 THEN
+        lPar:=GrMuestra(nLimA,nLimB,154);
+        IF nManual==0 THEN
+          lRan:=GrRangoY(lPar(2),lPar(3));
+          nYa:=lRan(1);
+          nYb:=lRan(2);
+        END;
+      ELSE
+        lPar:=GrMuestra(nLimA,nLimB,240);
+      END;
+      nRec:=0;
+    END;
+    IF nModo==0 THEN
+      GrCart(sTit,lPar,nLimA,nLimB,nYa,nYb);
+      IF nHay THEN
+        nPx:=IP(6+(nLeeX-nLimA)*308/(nLimB-nLimA));
+        nPy:=IP(MAX(29,MIN(185,186-(nLeeY-nYa)*158/(nYb-nYa))));
+        LINE_P(nPx,29,nPx,185,RGB(60,120,200));
+        RECT_P(nPx-3,nPy-3,nPx+3,nPy+3,RGB(20,70,150),RGB(20,70,150));
+        sLec:="x = "+UiNum(nLeeX,6)+"    f(x) = "+UiNum(nLeeY,6);
+        TEXTOUT_P(sLec,8,202,3,RGB(20,70,150));
+      ELSE
+        TEXTOUT_P("Tocá el gráfico para leer un punto.",8,203,2,RGB(105,110,128));
+      END;
+    ELSE
+      nEsc:=GrPolar(sTit,lPar,nZoom);
+      IF nHay THEN
+        nPx:=IP(160+nLeeY*COS(nLeeX)*nEsc);
+        nPy:=IP(107-nLeeY*SIN(nLeeX)*nEsc);
+        RECT_P(nPx-3,nPy-3,nPx+3,nPy+3,RGB(20,70,150),RGB(20,70,150));
+        sLec:="áng = "+UiNum(nLeeX,5)+"    r = "+UiNum(nLeeY,6);
+        TEXTOUT_P(sLec,8,202,3,RGB(20,70,150));
+      ELSE
+        TEXTOUT_P("Tocá la curva para leer un punto.",8,203,2,RGB(105,110,128));
+      END;
+    END;
+    DRAWMENU("Zoom +","Zoom -","Rango","","","Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=28 AND lEvt(3)<=186 THEN
+          nTx:=MAX(6,MIN(314,lEvt(2)));
+          IF nModo==0 THEN
+            nLeeX:=nLimA+(nTx-6)*(nLimB-nLimA)/308;
+            gBad:=0;
+            nLeeY:=ExF(nLeeX);
+            nHay:=1-gBad;
+            gBad:=0;
+          ELSE
+            lVt:=lPar(1);
+            lVr:=lPar(2);
+            lOk:=lPar(3);
+            nMejor:=0;
+            nDis:=1000000;
+            FOR nIdx FROM 1 TO SIZE(lVt) DO
+              IF lOk(nIdx) THEN
+                nDx:=160+lVr(nIdx)*COS(lVt(nIdx))*nEsc-nTx;
+                nDy:=107-lVr(nIdx)*SIN(lVt(nIdx))*nEsc-lEvt(3);
+                IF nDx*nDx+nDy*nDy<nDis THEN
+                  nDis:=nDx*nDx+nDy*nDy;
+                  nMejor:=nIdx;
+                END;
+              END;
+            END;
+            IF nMejor>0 THEN
+              nLeeX:=lVt(nMejor);
+              nLeeY:=lVr(nMejor);
+              nHay:=1;
+            END;
+          END;
+        END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==19 OR nTec==30 THEN nSof:=6; END;
+    IF nTec==50 THEN nSof:=1; END;
+    IF nTec==45 THEN nSof:=2; END;
+    IF nSof==1 OR nSof==2 THEN
+      nHay:=0;
+      IF nModo==0 THEN
+        nCen:=(nLimA+nLimB)/2;
+        nAnc:=(nLimB-nLimA)/2;
+        IF nSof==1 THEN
+          // no se acerca mas alla de lo que la calculadora puede distinguir
+          IF nAnc>0.000001*MAX(ABS(nCen),0.000001) THEN nAnc:=nAnc/2; END;
+        ELSE
+          nAnc:=nAnc*2;
+        END;
+        nLimA:=nCen-nAnc;
+        nLimB:=nCen+nAnc;
+        nRec:=1;
+      ELSE
+        IF nSof==1 THEN nZoom:=nZoom*2; ELSE nZoom:=nZoom/2; END;
+      END;
+    END;
+    IF nSof==3 THEN
+      IF nModo==0 THEN
+        lDat:=UiPedir("Rango del gráfico",{"x mínimo = ","x máximo = ",
+            "y mínimo = ","y máximo = "},{"Extremo izquierdo","Extremo derecho","Dejar 0 y 0 para ajuste automático",
+            "Dejar 0 y 0 para ajuste automático"},{nLimA,nLimB,0,0},0);
+        IF SIZE(lDat)>0 THEN
+          IF lDat(2)>lDat(1) THEN
+            nLimA:=lDat(1);
+            nLimB:=lDat(2);
+            nManual:=0;
+            IF lDat(4)>lDat(3) THEN
+              nManual:=1;
+              nYa:=lDat(3);
+              nYb:=lDat(4);
+            END;
+            nRec:=1;
+            nHay:=0;
+          ELSE
+            UiAviso("El máximo debe ser mayor que el mínimo.");
+          END;
+        END;
+      ELSE
+        lDat:=UiPedir("Rango del ángulo",{"Desde = ","Hasta = "},{"Ángulo inicial (en la unidad de la calculadora)",
+            "Ángulo final"},{nLimA,nLimB},0);
+        IF SIZE(lDat)>0 THEN
+          IF lDat(2)>lDat(1) THEN
+            nLimA:=lDat(1);
+            nLimB:=lDat(2);
+            nRec:=1;
+            nHay:=0;
+          ELSE
+            UiAviso("El final debe ser mayor que el inicio.");
+          END;
+        END;
+      END;
+    END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+END;
+
+// Muestra una curva ya calculada y espera.
+GrVer(sTit,lPar,nLimA,nLimB)
+BEGIN
+  LOCAL lRan,lEvt;
+  lRan:=GrRangoY(lPar(2),lPar(3));
+  GrCart(sTit,lPar,nLimA,nLimB,lRan(1),lRan(2));
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+// Superficie z = f(x,y) en malla de alambre. gRes usa X e Y.
+GrSuperf(sTit,nXa,nXb,nYa,nYb)
+BEGIN
+  LOCAL lZz,lOk,nIi,nJj,nVal,nZa,nZb,nHay;
+  LOCAL nAz,nFin,lEvt,nSof,nTec,nCa,nSa,nUu;
+  LOCAL nVv,nWw,lPx,lPy,nKk,nPx,nPy,nNn;
+  LOCAL nUr,nVr;
+  nNn:=14;
+  UiCalc(sTit);
+  lZz:={};
+  lOk:={};
+  nHay:=0;
+  nZa:=0;
+  nZb:=0;
+  FOR nIi FROM 0 TO nNn DO
+    FOR nJj FROM 0 TO nNn DO
+      gBad:=0;
+      nVal:=ExF2(nXa+(nXb-nXa)*nIi/nNn,nYa+(nYb-nYa)*nJj/nNn);
+      lZz:=CONCAT(lZz,{nVal});
+      lOk:=CONCAT(lOk,{1-gBad});
+      IF gBad==0 THEN
+        IF nHay==0 THEN
+          nZa:=nVal;
+          nZb:=nVal;
+          nHay:=1;
+        END;
+        nZa:=MIN(nZa,nVal);
+        nZb:=MAX(nZb,nVal);
+      END;
+    END;
+  END;
+  gBad:=0;
+  IF nHay==0 THEN
+    UiAviso("La función no se pudo evaluar en ese rango.");
+    RETURN 0;
+  END;
+  IF nZb==nZa THEN
+    nZa:=nZa-1;
+    nZb:=nZb+1;
+  END;
+  nAz:=0.6;
+  nFin:=0;
+  REPEAT
+    UiFondo(sTit);
+    RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+    nCa:=COS(nAz*gAng);
+    nSa:=SIN(nAz*gAng);
+    lPx:={};
+    lPy:={};
+    FOR nIi FROM 0 TO nNn DO
+      FOR nJj FROM 0 TO nNn DO
+        nKk:=nIi*(nNn+1)+nJj+1;
+        nUu:=2*nIi/nNn-1;
+        nVv:=2*nJj/nNn-1;
+        nWw:=2*(lZz(nKk)-nZa)/(nZb-nZa)-1;
+        nUr:=nUu*nCa-nVv*nSa;
+        nVr:=nUu*nSa+nVv*nCa;
+        lPx:=CONCAT(lPx,{IP(160+92*nUr)});
+        lPy:=CONCAT(lPy,{IP(110+30*nVr-44*nWw)});
+      END;
+    END;
+    FOR nIi FROM 0 TO nNn DO
+      FOR nJj FROM 0 TO nNn DO
+        nKk:=nIi*(nNn+1)+nJj+1;
+        IF lOk(nKk) THEN
+          IF nJj<nNn THEN
+            IF lOk(nKk+1) THEN
+              LINE_P(lPx(nKk),lPy(nKk),lPx(nKk+1),lPy(nKk+1),RGB(31,95,160));
+            END;
+          END;
+          IF nIi<nNn THEN
+            IF lOk(nKk+nNn+1) THEN
+              LINE_P(lPx(nKk),lPy(nKk),lPx(nKk+nNn+1),lPy(nKk+nNn+1),RGB(200,50,40));
+            END;
+          END;
+        END;
+      END;
+    END;
+    // esquina de referencia: (x min, y min)
+    nPx:=IP(160+92*(-nCa+nSa));
+    nPy:=IP(110+30*(-nSa-nCa)+44);
+    RECT_P(nPx-2,nPy-2,nPx+2,nPy+2,RGB(20,20,30),RGB(20,20,30));
+    TEXTOUT_P("x: "+UiNum(nXa,3)+" a "+UiNum(nXb,3)+"   y: "+UiNum(nYa,
+        3)+" a "+UiNum(nYb,3),8,188,1,RGB(90,95,110));
+    TEXTOUT_P("z: "+UiNum(nZa,4)+" a "+UiNum(nZb,4)+"   (punto negro = x mín, y mín, z mín)",
+        8,203,1,RGB(90,95,110));
+    DRAWMENU("Girar <","Girar >","","","","Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN nSof:=UiSoft(lEvt(2)); END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==19 OR nTec==30 THEN nSof:=6; END;
+    IF nTec==7 THEN nSof:=1; END;
+    IF nTec==8 THEN nSof:=2; END;
+    IF nSof==1 THEN nAz:=nAz-0.5235987756; END;
+    IF nSof==2 THEN nAz:=nAz+0.5235987756; END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  RETURN 1;
+END;
+
+// Abre una aplicacion de la calculadora. Prueba varios nombres
+// porque cambian con el idioma y la version.
+MdAbreApp(lNom,nVista)
+BEGIN
+  LOCAL nIdx;
+  FOR nIdx FROM 1 TO SIZE(lNom) DO
+    IFERR
+      STARTAPP(lNom(nIdx));
+    THEN
+      gErr:="app";
+    END;
+  END;
+  IFERR
+    STARTVIEW(nVista,1);
+  THEN
+    gErr:="vista";
+  END;
+  gSale:=1;
+END;
+
+// ---------- Modulos de matematica ----------
+
+// Convierte "A = B" en "(A)-(B)" ya listo para el CAS.
+ExAcero(sTxt)
+BEGIN
+  LOCAL lPar;
+  lPar:=UiPartir(sTxt,"=");
+  IF SIZE(lPar)>=2 THEN
+    RETURN "("+ExCasT(lPar(1))+")-("+ExCasT(lPar(2))+")";
+  END;
+  RETURN ExCasT(sTxt);
+END;
+
+MdGraficos()
+BEGIN
+  LOCAL nOpc,lDat,nFin,nLimA,nLimB,nMal,sHasta,nAux;
+  LOCAL nYa,nYb;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Gráficos",{"y = f(x)   gráfico rápido","r = f(t)   polar rápido",
+        "z = f(x,y)   superficie rápida","App Función (trazado completo)","App Gráfico 3D",
+        "App Polar","App Paramétrica"},{"f(x)","r(t)","3D","App","App","App","App"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Gráfico y = f(x)",{"f(x) = ","x mínimo = ","x máximo = "},
+          {"Función de x. Ej: x^2*sin(x)","Extremo izquierdo","Extremo derecho"},
+          {gFun,"-5","5"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        nLimA:=ExValor(lDat(2));
+        nMal:=nMal+gBad;
+        nLimB:=ExValor(lDat(3));
+        nMal:=nMal+gBad;
+        IF nMal>0 OR nLimB<=nLimA THEN
+          UiAviso("Revisar el rango de x.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            gFun:=lDat(1);
+            UiGraf("y = "+lDat(1),0,nLimA,nLimB);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==2 THEN
+      sHasta:="2*pi";
+      IF gAng>1.5 THEN sHasta:="360"; END;
+      IF gAng>60 THEN sHasta:="400"; END;
+      lDat:=UiPedir("Gráfico polar",{"r(t) = ","t desde = ","t hasta = "},
+          {"Radio en función del ángulo t. Ej: 1+cos(t)","Ángulo inicial","Ángulo final (en la unidad de la calculadora)"},
+          {"1+cos(t)","0",sHasta},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        nLimA:=ExValor(lDat(2));
+        nMal:=nMal+gBad;
+        nLimB:=ExValor(lDat(3));
+        nMal:=nMal+gBad;
+        IF nMal>0 OR nLimB<=nLimA THEN
+          UiAviso("Revisar el rango del ángulo.");
+        ELSE
+          IF ExPrep(lDat(1),{"t",CHAR(952),"x"},{"X","X","X"}) THEN
+            UiGraf("r = "+lDat(1),1,nLimA,nLimB);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Superficie z = f(x,y)",{"f(x,y) = ","x mínimo = ",
+          "x máximo = ","y mínimo = ","y máximo = "},{"Función de x e y. Ej: sin(x)*cos(y)",
+          "Extremo de x","Extremo de x","Extremo de y","Extremo de y"},{"sin(x)*cos(y)",
+          "-3","3","-3","3"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        nLimA:=ExValor(lDat(2));
+        nMal:=nMal+gBad;
+        nLimB:=ExValor(lDat(3));
+        nMal:=nMal+gBad;
+        nYa:=ExValor(lDat(4));
+        nMal:=nMal+gBad;
+        nYb:=ExValor(lDat(5));
+        nMal:=nMal+gBad;
+        IF nMal>0 OR nLimB<=nLimA OR nYb<=nYa THEN
+          UiAviso("Revisar los rangos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x","y"},{"X","Y"}) THEN
+            nAux:=GrSuperf("z = "+lDat(1),nLimA,nLimB,nYa,nYb);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==4 THEN
+      MdAbreApp({"Function","Función"},0);
+      nFin:=1;
+    END;
+    IF nOpc==5 THEN
+      MdAbreApp({"Graph 3D","Graph_3D","Gráfico 3D","Gráficos 3D"},0);
+      nFin:=1;
+    END;
+    IF nOpc==6 THEN
+      MdAbreApp({"Polar"},0);
+      nFin:=1;
+    END;
+    IF nOpc==7 THEN
+      MdAbreApp({"Parametric","Paramétrica","Paramétricas"},0);
+      nFin:=1;
+    END;
+  UNTIL nFin;
+END;
+
+MdDerivadas()
+BEGIN
+  LOCAL nOpc,lDat,sFun,sVar,sPto,sCmd,lLin,lVar;
+  LOCAL nIdx,nFin,sOrd,sDep;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Derivadas",{"Derivada  df/dx","Derivada de orden n",
+        "Parciales (todas las variables)","Derivada implícita  dy/dx","Puntos críticos  f'(x) = 0",
+        "Serie de Taylor"},{"d/dx","dn","d/dv","F=0","máx","Tay"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Derivada",{"f = ","Variable = ","Evaluar en = "},
+          {"Función. Ej: x^2*sin(x)","Dos veces: x,x   Cruzada: x,y","Opcional. Ej: x=2   (vacío = no evaluar)"},
+          {gFun,"x",""},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Derivada");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sPto:=ExCasT(lDat(3));
+        sCmd:="simplify(diff("+sFun+","+sVar+"))";
+        lLin:={"#Función"," "+sFun,"#Derivada respecto de "+sVar,"!"+ExCas(sCmd)};
+        IF sPto<>"" THEN
+          lLin:=CONCAT(lLin,{"#Valor en "+sPto,"!"+ExCas("evalf(subst("+sCmd+",["+sPto+"]))")});
+        END;
+        UiVer("Derivada",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Derivada de orden n",{"f = ","Variable = ","Orden n = "},
+          {"Función. Ej: x^5","Variable de derivación","Cantidad de veces que se deriva"},
+          {gFun,"x","2"},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Derivada de orden n");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sOrd:=ExCasT(lDat(3));
+        sCmd:="simplify(diff("+sFun+","+sVar+"$"+sOrd+"))";
+        lLin:={"#Función"," "+sFun,"#Derivada de orden "+sOrd+" respecto de "+sVar,"!"+ExCas(sCmd)};
+        UiVer("Derivada de orden n",lLin);
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Derivadas parciales",{"f = ","Variables = "},{"Función. Ej: x^2*y+sin(y*z)",
+          "Separadas por coma. Ej: x,y,z"},{"x^2*y+sin(y*z)","x,y,z"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Derivadas parciales");
+        sFun:=ExCasT(lDat(1));
+        lVar:=UiComas(ExCasT(lDat(2)));
+        lLin:={"#Función"," "+sFun};
+        FOR nIdx FROM 1 TO SIZE(lVar) DO
+          lLin:=CONCAT(lLin,{"#Parcial respecto de "+lVar(nIdx),"!"+ExCas("simplify(diff("+sFun+","+lVar(nIdx)+"))")});
+        END;
+        UiVer("Derivadas parciales",lLin);
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Derivada implícita",{"Ecuación: ","Variable = ","Función = "},
+          {"Ej: x^2+y^2=25","Variable independiente","Variable que depende de la otra"},
+          {"x^2+y^2=25","x","y"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Derivada implícita");
+        sFun:=ExAcero(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sDep:=ExCasT(lDat(3));
+        sCmd:="simplify(-diff("+sFun+","+sVar+")/diff("+sFun+","+sDep+"))";
+        lLin:={"#Ecuación"," "+ExCasT(lDat(1)),"#d"+sDep+"/d"+sVar,"!"+ExCas(sCmd)};
+        UiVer("Derivada implícita",lLin);
+      END;
+    END;
+    IF nOpc==5 THEN
+      lDat:=UiPedir("Puntos críticos",{"f = ","Variable = "},{"Función. Ej: x^3-3*x",
+          "Variable"},{gFun,"x"},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Puntos críticos");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        lLin:={"#Función"," "+sFun,"#Primera derivada","!"+ExCas("simplify(diff("+sFun+","+sVar+"))")};
+        lLin:=CONCAT(lLin,{"#Puntos donde la derivada vale 0","!"+ExCas("solve(diff("+sFun+","+sVar+")=0,"+sVar+")")});
+        lLin:=CONCAT(lLin,{"#Segunda derivada","!"+ExCas("simplify(diff("+sFun+","+sVar+"$2))"),
+            "~Segunda derivada positiva: mínimo. Negativa: máximo."});
+        UiVer("Puntos críticos",lLin);
+      END;
+    END;
+    IF nOpc==6 THEN
+      lDat:=UiPedir("Serie de Taylor",{"f = ","Variable = ","Alrededor de = ",
+          "Orden = "},{"Función. Ej: exp(x)*cos(x)","Variable","Punto de desarrollo",
+          "Mayor potencia del polinomio"},{gFun,"x","0","5"},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Serie de Taylor");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sPto:=ExCasT(lDat(3));
+        sOrd:=ExCasT(lDat(4));
+        sCmd:="taylor("+sFun+","+sVar+"="+sPto+","+sOrd+")";
+        lLin:={"#Función"," "+sFun,"#Polinomio de Taylor de orden "+sOrd+" en "+sVar+" = "+sPto,
+            "!"+ExCas2("convert("+sCmd+",polynom)",sCmd)};
+        UiVer("Serie de Taylor",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdIntegrales()
+BEGIN
+  LOCAL nOpc,lDat,sFun,sVar,sCmd,lLin,lOrd,nFin;
+  LOCAL lDos,lCam,lCur,sSub,sInt,nIdx,lNom,sLin;
+  nFin:=0;
+  lNom:={"x","y","z"};
+  REPEAT
+    nOpc:=UiMenu("Integrales",{"Indefinida","Definida  (también impropia)",
+        "Doble","Triple","De línea o cerrada  F . dr"},{"Sf","Sab","SS","SSS",
+        "S.dr"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Integral indefinida",{"f = ","Variable = "},{"Función a integrar. Ej: x*exp(x)",
+          "Variable de integración"},{gFun,"x"},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Integral indefinida");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        lLin:={"#Función"," "+sFun,"#Primitiva respecto de "+sVar,"!"+ExCas("int("+sFun+","+sVar+")")+" + C"};
+        UiVer("Integral indefinida",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Integral definida",{"f = ","Variable = ","Desde = ",
+          "Hasta = "},{"Función a integrar. Ej: x*exp(x)","Variable de integración",
+          "Límite inferior. Infinito: inf o -inf","Límite superior. Infinito: inf o -inf"},
+          {gFun,"x","0","1"},1);
+      IF SIZE(lDat)>0 THEN
+        gFun:=lDat(1);
+        UiCalc("Integral definida");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sCmd:="int("+sFun+","+sVar+","+ExCasT(lDat(3))+","+ExCasT(lDat(4))+")";
+        lLin:={"#Función"," "+sFun,"#Entre "+ExCasT(lDat(3))+" y "+ExCasT(lDat(4))+", respecto de "+sVar,
+            "#Valor exacto","!"+ExCas(sCmd),"#Valor decimal","!"+ExCas("evalf("+sCmd+")")};
+        UiVer("Integral definida",lLin);
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Integral doble",{"f = ","Orden = ","Interna desde = ",
+          "Interna hasta = ","Externa desde = ","Externa hasta = "},{"Función. Ej: x*y",
+          "Primero la variable interna. Ej: y,x","Puede depender de la variable externa. Ej: 0",
+          "Ej: x","Límite inferior externo","Límite superior externo"},{"x*y","y,x",
+          "0","x","0","1"},1);
+      IF SIZE(lDat)>0 THEN
+        lOrd:=UiComas(ExCasT(lDat(2)));
+        IF SIZE(lOrd)<>2 THEN
+          UiAviso("En el orden van dos variables. Ej: y,x");
+        ELSE
+          UiCalc("Integral doble");
+          sFun:=ExCasT(lDat(1));
+          sCmd:="int(int("+sFun+","+lOrd(1)+","+ExCasT(lDat(3))+","+ExCasT(lDat(4))+"),"+lOrd(2)+","+ExCasT(lDat(5))+","+ExCasT(lDat(6))+")";
+          lLin:={"#Función"," "+sFun,"#Interna: "+lOrd(1)+" de "+ExCasT(lDat(3))+" a "+ExCasT(lDat(4)),
+              "#Externa: "+lOrd(2)+" de "+ExCasT(lDat(5))+" a "+ExCasT(lDat(6)),"#Valor exacto",
+              "!"+ExCas(sCmd),"#Valor decimal","!"+ExCas("evalf("+sCmd+")")};
+          UiVer("Integral doble",lLin);
+        END;
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Integral triple",{"f = ","Orden = "},{"Función. Ej: x*y*z",
+          "De la más interna a la más externa. Ej: z,y,x"},{"x*y*z","z,y,x"},1);
+      IF SIZE(lDat)>0 THEN
+        lOrd:=UiComas(ExCasT(lDat(2)));
+        IF SIZE(lOrd)<>3 THEN
+          UiAviso("En el orden van tres variables. Ej: z,y,x");
+        ELSE
+          lDos:=UiPedir("Límites",{lOrd(1)+" desde = ",lOrd(1)+" hasta = ",
+              lOrd(2)+" desde = ",lOrd(2)+" hasta = ",lOrd(3)+" desde = ",lOrd(3)+" hasta = "},
+              {"Interna. Puede depender de las otras","Interna. Puede depender de las otras",
+              "Media. Puede depender de la externa","Media. Puede depender de la externa",
+              "Externa: número","Externa: número"},{"0","1","0","1","0","1"},1);
+          IF SIZE(lDos)>0 THEN
+            UiCalc("Integral triple");
+            sFun:=ExCasT(lDat(1));
+            sCmd:="int(int(int("+sFun+","+lOrd(1)+","+ExCasT(lDos(1))+","+ExCasT(lDos(2))+"),"+lOrd(2)+","+ExCasT(lDos(3))+","+ExCasT(lDos(4))+"),"+lOrd(3)+","+ExCasT(lDos(5))+","+ExCasT(lDos(6))+")";
+            lLin:={"#Función"," "+sFun,"#"+lOrd(1)+" de "+ExCasT(lDos(1))+" a "+ExCasT(lDos(2)),
+                "#"+lOrd(2)+" de "+ExCasT(lDos(3))+" a "+ExCasT(lDos(4)),"#"+lOrd(3)+" de "+ExCasT(lDos(5))+" a "+ExCasT(lDos(6)),
+                "#Valor exacto","!"+ExCas(sCmd),"#Valor decimal","!"+ExCas("evalf("+sCmd+")")};
+            UiVer("Integral triple",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==5 THEN
+      lDat:=UiPedir("Integral de línea",{"Campo F = ","Curva r(t) = ",
+          "t desde = ","t hasta = "},{"Componentes separadas por coma, en x, y, z. Ej: -y, x",
+          "Curva en función de t. Ej: cos(t), sin(t)","Inicio del recorrido","Fin. Curva cerrada: una vuelta completa"},
+          {"-y, x","cos(t), sin(t)","0","2*pi"},1);
+      IF SIZE(lDat)>0 THEN
+        lCam:=UiComas(ExCasT(lDat(1)));
+        lCur:=UiComas(ExCasT(lDat(2)));
+        IF SIZE(lCam)<>SIZE(lCur) OR SIZE(lCam)<2 OR SIZE(lCam)>3 THEN
+          UiAviso("El campo y la curva deben tener 2 o 3 componentes cada uno.");
+        ELSE
+          UiCalc("Integral de línea");
+          sSub:="";
+          FOR nIdx FROM 1 TO SIZE(lCur) DO
+            IF nIdx>1 THEN sSub:=sSub+","; END;
+            sSub:=sSub+lNom(nIdx)+"=("+lCur(nIdx)+")";
+          END;
+          sInt:="";
+          FOR nIdx FROM 1 TO SIZE(lCam) DO
+            IF nIdx>1 THEN sInt:=sInt+"+"; END;
+            sInt:=sInt+"subst("+lCam(nIdx)+",["+sSub+"])*diff("+lCur(nIdx)+",t)";
+          END;
+          sCmd:="int("+sInt+",t,"+ExCasT(lDat(3))+","+ExCasT(lDat(4))+")";
+          sLin:="#t de "+ExCasT(lDat(3))+" a "+ExCasT(lDat(4));
+          lLin:={"#Campo F"," ["+ExCasT(lDat(1))+"]","#Curva r(t)"," ["+ExCasT(lDat(2))+"]",
+              sLin,"#Valor exacto","!"+ExCas("simplify("+sCmd+")"),"#Valor decimal",
+              "!"+ExCas("evalf("+sCmd+")")};
+          UiVer("Integral de línea",lLin);
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdLimites()
+BEGIN
+  LOCAL nOpc,lDat,sFun,sVar,sPto,lLin,nFin,sXa;
+  LOCAL sYa,sCam;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Límites",{"Una variable","Dos variables (por caminos)"},{"lim","lim2"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Límite",{"f = ","Variable = ","Tiende a = "},{"Función. Ej: sin(x)/x",
+          "Variable","Número, inf o -inf"},{"sin(x)/x","x","0"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Límite");
+        sFun:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sPto:=ExCasT(lDat(3));
+        lLin:={"#Función"," "+sFun,"#Límite cuando "+sVar+" tiende a "+sPto,
+            "!"+ExCas("limit("+sFun+","+sVar+","+sPto+")")};
+        IF UiEn(sPto,"inf")==0 AND UiEn(sPto,CHAR(8734))==0 THEN
+          lLin:=CONCAT(lLin,{"#Por la derecha","!"+ExCas("limit("+sFun+","+sVar+","+sPto+",1)"),
+              "#Por la izquierda","!"+ExCas("limit("+sFun+","+sVar+","+sPto+",-1)")});
+        END;
+        UiVer("Límite",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Límite en dos variables",{"f(x,y) = ","x tiende a = ",
+          "y tiende a = "},{"Función de x e y. Ej: x*y/(x^2+y^2)","Valor de x","Valor de y"},
+          {"x*y/(x^2+y^2)","0","0"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Límite en dos variables");
+        sFun:=ExCasT(lDat(1));
+        sXa:="("+ExCasT(lDat(2))+")";
+        sYa:="("+ExCasT(lDat(3))+")";
+        lLin:={"#Función"," "+sFun,"#Punto"," x = "+sXa+"   y = "+sYa};
+        sCam:="limit(subst("+sFun+",y="+sYa+"),x,"+sXa+")";
+        lLin:=CONCAT(lLin,{"#Camino horizontal (y fijo)","!"+ExCas(sCam)});
+        sCam:="limit(subst("+sFun+",x="+sXa+"),y,"+sYa+")";
+        lLin:=CONCAT(lLin,{"#Camino vertical (x fijo)","!"+ExCas(sCam)});
+        sCam:="simplify(limit(subst("+sFun+",y="+sYa+"+mm*(x-"+sXa+")),x,"+sXa+"))";
+        lLin:=CONCAT(lLin,{"#Rectas de pendiente mm","!"+ExCas(sCam)});
+        sCam:="simplify(limit(subst("+sFun+",y="+sYa+"+mm*(x-"+sXa+")^2),x,"+sXa+"))";
+        lLin:=CONCAT(lLin,{"#Parábolas de coeficiente mm","!"+ExCas(sCam)});
+        sCam:="simplify(limit(subst("+sFun+",[x="+sXa+"+rr*cos(tt),y="+sYa+"+rr*sin(tt)]),rr,0,1))";
+        lLin:=CONCAT(lLin,{"#En polares, con el radio rr tendiendo a 0","!"+ExCas(sCam)});
+        lLin:=CONCAT(lLin,{"~Si algún resultado depende de mm o de tt, o los caminos dan valores distintos, el límite no existe.",
+            "~Si todos coinciden, ese es el candidato a límite."});
+        UiVer("Límite en dos variables",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdEcuaciones()
+BEGIN
+  LOCAL nOpc,lDat,sEcu,sVar,lLin,nFin,nSol,nIni;
+  LOCAL lVar,sCmd,lSol,nIdx;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Ecuaciones",{"Despejar una variable","Resolver con números (1 incógnita)",
+        "Inecuación","Sistema de ecuaciones","Soluciones complejas"},{"x=?","0.0",
+        "< >","{ }","a+bi"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 OR nOpc==3 OR nOpc==5 THEN
+      sEcu:="p*v=n*r*t";
+      sVar:="t";
+      IF nOpc==3 THEN
+        sEcu:="x^2-4>0";
+        sVar:="x";
+      END;
+      IF nOpc==5 THEN
+        sEcu:="x^2+2*x+5=0";
+        sVar:="x";
+      END;
+      lDat:=UiPedir("Ecuación",{"Ecuación: ","Despejar = "},{"Con = , < , > . Ej: p*v=n*r*t",
+          "Variable que se quiere despejar"},{sEcu,sVar},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Ecuación");
+        sEcu:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sCmd:="solve("+sEcu+","+sVar+")";
+        IF nOpc==5 THEN sCmd:="csolve("+sEcu+","+sVar+")"; END;
+        lLin:={"#Ecuación"," "+sEcu,"#Solución para "+sVar,"!"+ExCas(sCmd)};
+        IF nOpc<>3 THEN
+          lLin:=CONCAT(lLin,{"#En decimales","!"+ExCas("evalf("+sCmd+")")});
+        END;
+        UiVer("Ecuación",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Resolver con números",{"Ecuación: ","Incógnita = ",
+          "Valor estimado = "},{"Una sola incógnita. Ej: x*exp(x)=5","Nombre de la incógnita",
+          "Un valor cercano a la solución buscada"},{"x*exp(x)=5","x","1"},1);
+      IF SIZE(lDat)>0 THEN
+        lVar:=ExVars(lDat(2));
+        sVar:="x";
+        IF SIZE(lVar)>=1 THEN sVar:=lVar(1); END;
+        nIni:=ExValor(lDat(3));
+        IF gBad THEN nIni:=1; END;
+        IF ExPrep(lDat(1),{sVar},{"X"}) THEN
+          UiCalc("Resolver con números");
+          lSol:=ExRaices(nIni);
+          IF SIZE(lSol)==0 THEN
+            UiAviso("No encontré ninguna solución real. Revisar la ecuación.");
+          ELSE
+            nSol:=lSol(1);
+            lLin:={"#Ecuación"," "+lDat(1),"#Solución más cercana a "+lDat(3),"!"+sVar+" = "+UiNum(nSol,10)};
+            IF SIZE(lSol)>1 THEN
+              lLin:=CONCAT(lLin,{"#Otras soluciones encontradas"});
+              FOR nIdx FROM 2 TO SIZE(lSol) DO
+                lLin:=CONCAT(lLin,{" "+sVar+" = "+UiNum(lSol(nIdx),10)});
+              END;
+            END;
+            lLin:=CONCAT(lLin,{"#Comprobación: lado izquierdo menos lado derecho",
+                " "+UiNum(ExF(nSol),3),"~Se buscan soluciones reales entre -10^30 y 10^30. Una raíz doble puede no aparecer."});
+            gBad:=0;
+            UiVer("Resolver con números",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Sistema de ecuaciones",{"Ecuaciones: ","Incógnitas = "},
+          {"Separadas por coma. Ej: x+y=3, x-y=1","Separadas por coma. Ej: x,y"},
+          {"x+y=3, x-y=1","x,y"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Sistema de ecuaciones");
+        sEcu:=ExCasT(lDat(1));
+        sVar:=ExCasT(lDat(2));
+        sCmd:="solve(["+sEcu+"],["+sVar+"])";
+        lLin:={"#Ecuaciones"," "+sEcu,"#Solución para ["+sVar+"]","!"+ExCas(sCmd),
+            "#En decimales","!"+ExCas("evalf("+sCmd+")")};
+        UiVer("Sistema de ecuaciones",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdPolinomios()
+BEGIN
+  LOCAL lDat,sPol,lLin,lVar,sVar;
+  lDat:=UiPedir("Polinomios",{"P = "},{"Ej: x^3-6*x^2+11*x-6   o los coeficientes 1,-6,11,-6"},
+      {"x^3-6*x^2+11*x-6"},1);
+  IF SIZE(lDat)==0 THEN RETURN 0; END;
+  UiCalc("Polinomios");
+  sPol:=ExCasT(lDat(1));
+  lVar:=ExVars(lDat(1));
+  sVar:="x";
+  IF SIZE(lVar)>=1 THEN
+    sVar:=lVar(1);
+  ELSE
+    // solo numeros: se toman como coeficientes
+    sPol:="poly2symb(["+sPol+"],x)";
+  END;
+  lLin:={"#Polinomio","!"+ExCas("expand("+sPol+")")};
+  lLin:=CONCAT(lLin,{"#Raíces (valores numéricos, reales y complejas)","!"+ExCas("proot("+sPol+")")});
+  lLin:=CONCAT(lLin,{"#Raíces exactas","!"+ExCas("csolve("+sPol+"=0,"+sVar+")")});
+  lLin:=CONCAT(lLin,{"#Factorizado","!"+ExCas("factor("+sPol+")")});
+  lLin:=CONCAT(lLin,{"#Grado"," "+ExCas("degree("+sPol+","+sVar+")")});
+  UiVer("Polinomios",lLin);
+  RETURN 1;
+END;
+
+MdEdo()
+BEGIN
+  LOCAL nOpc,lDat,sEcu,sFun,sVar,sCon,lLin,nFin;
+  LOCAL lNum,nPas,nHh,nXx,nYy,nKa,nKb,nKc;
+  LOCAL nKd,nIdx,lVx,lVy,lOk,nMal,nCada,nBot;
+  LOCAL lDer,lDst;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Ecuaciones diferenciales",{"Solución general","Con condiciones iniciales",
+        "Numérica  y' = f(x,y)"},{"y(x)","y(0)","RK4"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 OR nOpc==2 THEN
+      IF nOpc==1 THEN
+        lDat:=UiPedir("Ecuación diferencial",{"Ecuación: ","Función = ",
+            "Variable = "},{"Derivadas: y' y''  (o dy, d2y, d3y). Ej: y''+y=sin(x)",
+            "Función incógnita","Variable independiente"},{"y''+y=sin(x)","y","x"},
+            1);
+      ELSE
+        lDat:=UiPedir("Ecuación diferencial",{"Ecuación: ","Función = ",
+            "Variable = ","Condiciones: "},{"Derivadas: y' y''  (o dy, d2y, d3y). Ej: y''+y=0",
+            "Función incógnita","Variable independiente","Separadas por coma. Ej: y(0)=1, y'(0)=0"},
+            {"y''+y=0","y","x","y(0)=1, y'(0)=0"},1);
+      END;
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Ecuación diferencial");
+        sFun:=ExCasT(lDat(2));
+        sVar:=ExCasT(lDat(3));
+        lDer:={"d"+sFun,"d2"+sFun,"d3"+sFun,"d4"+sFun};
+        lDst:={sFun+"'",sFun+"''",sFun+"'''",sFun+"''''"};
+        sEcu:=ExComp(lDat(1),lDer,lDst,1);
+        IF nOpc==1 THEN
+          lLin:={"#Ecuación"," "+sEcu,"#Solución general  "+sFun+"("+sVar+")",
+              "!"+ExCas("desolve("+sEcu+","+sVar+","+sFun+")"),"~c_0, c_1 ... (o G_0, G_1) son las constantes de integración."};
+        ELSE
+          sCon:=ExComp(lDat(4),lDer,lDst,1);
+          lLin:={"#Ecuación"," "+sEcu,"#Condiciones"," "+sCon,"#Solución  "+sFun+"("+sVar+")",
+              "!"+ExCas("desolve(["+sEcu+","+sCon+"],"+sVar+","+sFun+")")};
+        END;
+        UiVer("Ecuación diferencial",lLin);
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("EDO numérica (RK4)",{"y' = ","x inicial = ","y inicial = ",
+          "x final = ","Pasos = "},{"Función de x e y. Ej: x-y","Punto de partida",
+          "Valor de y en el punto de partida","Hasta dónde se calcula","Cantidad de pasos (más pasos, más precisión)"},
+          {"x-y","0","1","2","100"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 5 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x","y"},{"X","Y"}) THEN
+            UiCalc("EDO numérica (RK4)");
+            nPas:=MAX(1,MIN(2000,ROUND(lNum(4),0)));
+            nXx:=lNum(1);
+            nYy:=lNum(2);
+            nHh:=(lNum(3)-lNum(1))/nPas;
+            lVx:={nXx};
+            lVy:={nYy};
+            lOk:={1};
+            nCada:=CEILING(nPas/150);
+            nMal:=0;
+            nIdx:=1;
+            WHILE nIdx<=nPas AND nMal==0 DO
+              gBad:=0;
+              nKa:=ExF2(nXx,nYy);
+              nKb:=ExF2(nXx+nHh/2,nYy+nHh*nKa/2);
+              nKc:=ExF2(nXx+nHh/2,nYy+nHh*nKb/2);
+              nKd:=ExF2(nXx+nHh,nYy+nHh*nKc);
+              IF gBad THEN
+                nMal:=1;
+              ELSE
+                nYy:=nYy+nHh*(nKa+2*nKb+2*nKc+nKd)/6;
+                nXx:=lNum(1)+nIdx*nHh;
+                IF (nIdx MOD nCada)==0 OR nIdx==nPas THEN
+                  lVx:=CONCAT(lVx,{nXx});
+                  lVy:=CONCAT(lVy,{nYy});
+                  lOk:=CONCAT(lOk,{1});
+                END;
+              END;
+              nIdx:=nIdx+1;
+            END;
+            gBad:=0;
+            IF nMal THEN
+              UiAviso("La función no se pudo evaluar en x = "+UiNum(nXx,6));
+            ELSE
+              lLin:={"#Ecuación"," y' = "+lDat(1),"#Condición inicial",
+                  " y("+UiNum(lNum(1),6)+") = "+UiNum(lNum(2),6),"#Resultado con "+STRING(nPas)+" pasos",
+                  "!y("+UiNum(nXx,6)+") = "+UiNum(nYy,9),"#Algunos puntos de la solución"};
+              nCada:=MAX(1,IP(SIZE(lVx)/8));
+              nIdx:=1;
+              WHILE nIdx<=SIZE(lVx) DO
+                lLin:=CONCAT(lLin,{" x = "+UiNum(lVx(nIdx),5)+"     y = "+UiNum(lVy(nIdx),7)});
+                nIdx:=nIdx+nCada;
+              END;
+              nBot:=1;
+              WHILE nBot==1 DO
+                nBot:=UiTexto("EDO numérica (RK4)",lLin,{"Gráfico","",""});
+                IF nBot==1 THEN
+                  IF lNum(3)>lNum(1) THEN
+                    GrVer("y(x)",{lVx,lVy,lOk},lNum(1),lNum(3));
+                  ELSE
+                    UiAviso("El gráfico necesita x final mayor que x inicial.");
+                  END;
+                END;
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdLaplace()
+BEGIN
+  LOCAL nOpc,lDat,sFun,lLin,nFin;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Laplace",{"Transformada  f(t) -> F(s)","Inversa  F(s) -> f(t)",
+        "Fracciones parciales de F(s)"},{"L","L-1","A/s"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Transformada de Laplace",{"f(t) = "},{"Función de t. Ej: t*exp(-2*t)"},
+          {"t*exp(-2*t)"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Transformada de Laplace");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#f(t)"," "+sFun,"#F(s)","!"+ExCas("laplace("+sFun+",t,s)")};
+        UiVer("Transformada de Laplace",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Laplace inversa",{"F(s) = "},{"Función de s. Ej: 1/(s^2+4*s+3)"},{"1/(s^2+4*s+3)"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Laplace inversa");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#F(s)"," "+sFun,"#f(t)","!"+ExCas2("ilaplace("+sFun+",s,t)","invlaplace("+sFun+",s,t)")};
+        UiVer("Laplace inversa",lLin);
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Fracciones parciales",{"F(s) = "},{"Cociente de polinomios en s. Ej: (s+3)/(s^2+3*s+2)"},
+          {"(s+3)/(s^2+3*s+2)"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Fracciones parciales");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#F(s)"," "+sFun,"#Descomposición","!"+ExCas2("partfrac("+sFun+",s)","partfrac("+sFun+")")};
+        UiVer("Fracciones parciales",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdCampos()
+BEGIN
+  LOCAL nOpc,lDat,sFun,lVar,lCam,lLin,nFin,nIdx;
+  LOCAL nJdx,sCmd,nCnt,lPto,lDir,sSub,sNor,sAux;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Campos y operadores",{"Gradiente de f","Divergencia de F",
+        "Rotor de F","Laplaciano de f","Segundas derivadas (Hessiano)","Derivada direccional"},
+        {"grad","div","rot","lap","H","Du"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 OR nOpc==4 OR nOpc==5 THEN
+      lDat:=UiPedir("Campo escalar",{"f = ","Variables = "},{"Función. Ej: x^2*y+z^3",
+          "Separadas por coma. Ej: x,y,z"},{"x^2*y+z^3","x,y,z"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Campos y operadores");
+        sFun:=ExCasT(lDat(1));
+        lVar:=UiComas(ExCasT(lDat(2)));
+        nCnt:=SIZE(lVar);
+        lLin:={"#Función"," "+sFun};
+        IF nOpc==1 THEN
+          FOR nIdx FROM 1 TO nCnt DO
+            lLin:=CONCAT(lLin,{"#Componente "+lVar(nIdx),"!"+ExCas("simplify(diff("+sFun+","+lVar(nIdx)+"))")});
+          END;
+        END;
+        IF nOpc==4 THEN
+          sCmd:="";
+          FOR nIdx FROM 1 TO nCnt DO
+            IF nIdx>1 THEN sCmd:=sCmd+"+"; END;
+            sCmd:=sCmd+"diff("+sFun+","+lVar(nIdx)+","+lVar(nIdx)+")";
+          END;
+          lLin:=CONCAT(lLin,{"#Laplaciano","!"+ExCas("simplify("+sCmd+")")});
+        END;
+        IF nOpc==5 THEN
+          FOR nIdx FROM 1 TO nCnt DO
+            FOR nJdx FROM nIdx TO nCnt DO
+              lLin:=CONCAT(lLin,{"#Derivada segunda respecto de "+lVar(nIdx)+" y "+lVar(nJdx),
+                  "!"+ExCas("simplify(diff("+sFun+","+lVar(nIdx)+","+lVar(nJdx)+"))")});
+            END;
+          END;
+        END;
+        UiVer("Campos y operadores",lLin);
+      END;
+    END;
+    IF nOpc==2 OR nOpc==3 THEN
+      lDat:=UiPedir("Campo vectorial",{"F = ","Variables = "},{"Componentes separadas por coma. Ej: x*y, y*z, z*x",
+          "Separadas por coma. Ej: x,y,z"},{"x*y, y*z, z*x","x,y,z"},1);
+      IF SIZE(lDat)>0 THEN
+        lCam:=UiComas(ExCasT(lDat(1)));
+        lVar:=UiComas(ExCasT(lDat(2)));
+        nCnt:=SIZE(lVar);
+        IF SIZE(lCam)<>nCnt THEN
+          UiAviso("El campo debe tener una componente por cada variable.");
+        ELSE
+          IF nOpc==3 AND nCnt<>3 THEN
+            UiAviso("El rotor necesita 3 componentes y 3 variables.");
+          ELSE
+            UiCalc("Campos y operadores");
+            lLin:={"#Campo F"," ["+ExCasT(lDat(1))+"]"};
+            IF nOpc==2 THEN
+              sCmd:="";
+              FOR nIdx FROM 1 TO nCnt DO
+                IF nIdx>1 THEN sCmd:=sCmd+"+"; END;
+                sCmd:=sCmd+"diff("+lCam(nIdx)+","+lVar(nIdx)+")";
+              END;
+              lLin:=CONCAT(lLin,{"#Divergencia","!"+ExCas("simplify("+sCmd+")")});
+            ELSE
+              sCmd:="simplify(diff("+lCam(3)+","+lVar(2)+")-diff("+lCam(2)+","+lVar(3)+"))";
+              lLin:=CONCAT(lLin,{"#Rotor, componente "+lVar(1),"!"+ExCas(sCmd)});
+              sCmd:="simplify(diff("+lCam(1)+","+lVar(3)+")-diff("+lCam(3)+","+lVar(1)+"))";
+              lLin:=CONCAT(lLin,{"#Rotor, componente "+lVar(2),"!"+ExCas(sCmd)});
+              sCmd:="simplify(diff("+lCam(2)+","+lVar(1)+")-diff("+lCam(1)+","+lVar(2)+"))";
+              lLin:=CONCAT(lLin,{"#Rotor, componente "+lVar(3),"!"+ExCas(sCmd)});
+            END;
+            UiVer("Campos y operadores",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==6 THEN
+      lDat:=UiPedir("Derivada direccional",{"f = ","Variables = ","Punto = ",
+          "Dirección = "},{"Función. Ej: x^2*y","Separadas por coma. Ej: x,y","Coordenadas del punto. Ej: 1,2",
+          "Vector dirección, sin normalizar. Ej: 3,4"},{"x^2*y","x,y","1,2","3,4"},
+          1);
+      IF SIZE(lDat)>0 THEN
+        sFun:=ExCasT(lDat(1));
+        lVar:=UiComas(ExCasT(lDat(2)));
+        lPto:=UiComas(ExCasT(lDat(3)));
+        lDir:=UiComas(ExCasT(lDat(4)));
+        nCnt:=SIZE(lVar);
+        IF SIZE(lPto)<>nCnt OR SIZE(lDir)<>nCnt THEN
+          UiAviso("El punto y la dirección deben tener un valor por cada variable.");
+        ELSE
+          UiCalc("Derivada direccional");
+          sCmd:="";
+          sSub:="";
+          sNor:="";
+          FOR nIdx FROM 1 TO nCnt DO
+            IF nIdx>1 THEN
+              sCmd:=sCmd+"+";
+              sSub:=sSub+",";
+              sNor:=sNor+"+";
+            END;
+            sCmd:=sCmd+"diff("+sFun+","+lVar(nIdx)+")*("+lDir(nIdx)+")";
+            sSub:=sSub+lVar(nIdx)+"=("+lPto(nIdx)+")";
+            sNor:=sNor+"("+lDir(nIdx)+")^2";
+          END;
+          sAux:="subst(("+sCmd+")/sqrt("+sNor+"),["+sSub+"])";
+          lLin:={"#Función"," "+sFun,"#Punto ["+ExCasT(lDat(3))+"]   Dirección ["+ExCasT(lDat(4))+"]",
+              "#Derivada direccional (valor exacto)","!"+ExCas("simplify("+sAux+")"),
+              "#Valor decimal","!"+ExCas("evalf("+sAux+")")};
+          UiVer("Derivada direccional",lLin);
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+MdAlgebra()
+BEGIN
+  LOCAL nOpc,lDat,sFun,lLin,nFin,sCmd;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Álgebra",{"Simplificar, factorizar y expandir","Fracciones parciales",
+        "Evaluar con valores","Sumatoria"},{"a=b","A/x","x=2","Sum"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Simplificar",{"Expresión: "},{"Ej: (x^2-1)/(x-1)+sin(x)^2+cos(x)^2"},
+          {"(x^2-1)/(x-1)"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Simplificar");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#Expresión"," "+sFun,"#Simplificada","!"+ExCas("simplify("+sFun+")"),
+            "#Factorizada","!"+ExCas("factor("+sFun+")"),"#Expandida","!"+ExCas("expand("+sFun+")")};
+        UiVer("Simplificar",lLin);
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Fracciones parciales",{"Expresión: ","Variable = "},
+          {"Cociente de polinomios. Ej: 1/(x^2-1)","Variable"},{"1/(x^2-1)","x"},
+          1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Fracciones parciales");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#Expresión"," "+sFun,"#Descomposición","!"+ExCas2("partfrac("+sFun+","+ExCasT(lDat(2))+")",
+            "partfrac("+sFun+")")};
+        UiVer("Fracciones parciales",lLin);
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Evaluar",{"Expresión: ","Valores: "},{"Ej: x^2+y^2",
+          "Separados por coma. Ej: x=3, y=4"},{"x^2+y^2","x=3, y=4"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Evaluar");
+        sFun:=ExCasT(lDat(1));
+        sCmd:="subst("+sFun+",["+ExCasT(lDat(2))+"])";
+        lLin:={"#Expresión"," "+sFun,"#Con "+ExCasT(lDat(2)),"#Valor exacto",
+            "!"+ExCas("simplify("+sCmd+")"),"#Valor decimal","!"+ExCas("evalf("+sCmd+")")};
+        UiVer("Evaluar",lLin);
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Sumatoria",{"Término: ","Índice = ","Desde = ","Hasta = "},
+          {"Ej: 1/k^2","Variable que cuenta","Valor inicial","Valor final. Infinito: inf"},
+          {"1/k^2","k","1","inf"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Sumatoria");
+        sFun:=ExCasT(lDat(1));
+        sCmd:="sum("+sFun+","+ExCasT(lDat(2))+","+ExCasT(lDat(3))+","+ExCasT(lDat(4))+")";
+        lLin:={"#Término"," "+sFun,"#Suma para "+ExCasT(lDat(2))+" de "+ExCasT(lDat(3))+" a "+ExCasT(lDat(4)),
+            "#Valor exacto","!"+ExCas(sCmd),"#Valor decimal","!"+ExCas("evalf("+sCmd+")")};
+        UiVer("Sumatoria",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Matrices ----------
+// A es M1, B es M2 y el resultado queda en M3.
+
+// Ejecuta una operacion de matrices escrita como texto.
+// Devuelve 1 si salio bien y deja el resultado en M3.
+MtHace(sOper)
+BEGIN
+  LOCAL nMal;
+  nMal:=0;
+  IFERR
+    M3:=EXPR(sOper);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN
+    UiAviso("No se pudo calcular. Revisar el tamaño de las matrices.");
+    RETURN 0;
+  END;
+  RETURN 1;
+END;
+
+// Valor numerico de una operacion de matrices (determinante, rango...).
+MtValor(sOper)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  IFERR
+    vRes:=EXPR(sOper);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  gBad:=0;
+  RETURN vRes;
+END;
+
+MtEdita(nCual)
+BEGIN
+  IFERR
+    IF nCual==1 THEN EDITMAT(M1); END;
+    IF nCual==2 THEN EDITMAT(M2); END;
+    IF nCual==3 THEN EDITMAT(M3); END;
+  THEN
+    UiAviso("No se pudo abrir el editor. Usar Shift + 4 (Matriz).");
+  END;
+  UiMarca();
+END;
+
+MtMuestra()
+BEGIN
+  UiAviso("El resultado quedó guardado en M3. Se abre para verlo.");
+  MtEdita(3);
+END;
+
+MdMatrices()
+BEGIN
+  LOCAL nOpc,nFin,lDat,vRes,lLin,vTra;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Matrices",{"Editar matriz A  (M1)","Editar matriz B  (M2)",
+        "Determinante de A","Inversa de A","Transpuesta de A","Rango y traza de A",
+        "A + B","A - B","A . B","k . A","A elevada a n","Resolver  A . x = B",
+        "Autovalores de A","Forma escalonada de A"},{"A","B","det","A-1","At",
+        "rg","A+B","A-B","A.B","k.A","A^n","Ax=B","eig","rref"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN MtEdita(1); END;
+    IF nOpc==2 THEN MtEdita(2); END;
+    IF nOpc==3 THEN
+      vRes:=MtValor("DET(M1)");
+      IF gBad THEN
+        UiAviso("No se pudo calcular. A debe ser cuadrada.");
+      ELSE
+        lLin:={"#Determinante de A (M1)","!"+UiNum(vRes,10)};
+        IF TYPE(vRes)==0 THEN
+          IF vRes==0 THEN
+            lLin:=CONCAT(lLin,{"~Determinante 0: la matriz no tiene inversa."});
+          END;
+        END;
+        UiVer("Determinante",lLin);
+      END;
+      gBad:=0;
+    END;
+    IF nOpc==4 THEN
+      IF MtHace("M1^(-1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==5 THEN
+      IF MtHace("TRN(M1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==6 THEN
+      vRes:=MtValor("RANK(M1)");
+      IF gBad THEN
+        UiAviso("No se pudo calcular el rango.");
+      ELSE
+        lLin:={"#Rango de A (M1)","!"+UiNum(vRes,10)};
+        vTra:=MtValor("TRACE(M1)");
+        IF gBad==0 THEN
+          lLin:=CONCAT(lLin,{"#Traza de A","!"+UiNum(vTra,10)});
+        END;
+        UiVer("Rango y traza",lLin);
+      END;
+      gBad:=0;
+    END;
+    IF nOpc==7 THEN
+      IF MtHace("M1+M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==8 THEN
+      IF MtHace("M1-M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==9 THEN
+      IF MtHace("M1*M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==10 THEN
+      lDat:=UiPedir("k . A",{"k = "},{"Número por el que se multiplica la matriz A"},{2},0);
+      IF SIZE(lDat)>0 THEN
+        K:=lDat(1);
+        IF MtHace("K*M1") THEN MtMuestra(); END;
+      END;
+    END;
+    IF nOpc==11 THEN
+      lDat:=UiPedir("A elevada a n",{"n = "},{"Exponente entero. A debe ser cuadrada"},{2},0);
+      IF SIZE(lDat)>0 THEN
+        K:=ROUND(lDat(1),0);
+        IF MtHace("M1^K") THEN MtMuestra(); END;
+      END;
+    END;
+    IF nOpc==12 THEN
+      IF MtHace("M1^(-1)*M2") THEN MtMuestra(); END;
+    END;
+    IF nOpc==13 THEN
+      IF MtHace("EIGENVAL(M1)") THEN MtMuestra(); END;
+    END;
+    IF nOpc==14 THEN
+      IF MtHace("RREF(M1)") THEN MtMuestra(); END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Probabilidad ----------
+// Distribuciones: 1 Normal, 2 t de Student, 3 Chi cuadrado, 4 F,
+// 5 Exponencial, 6 Uniforme, 7 Binomial, 8 Poisson,
+// 9 Geometrica, 10 Hipergeometrica.
+
+// Llama a una funcion de la calculadora con hasta 3 numeros (A, B, C).
+PrCall(sFun,nPa,nPb,nPc)
+BEGIN
+  LOCAL vRes,nMal;
+  vRes:=0;
+  nMal:=0;
+  A:=nPa;
+  B:=nPb;
+  C:=nPc;
+  IFERR
+    vRes:=EXPR(sFun);
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 THEN
+    IF TYPE(vRes)<>0 THEN nMal:=1; END;
+  END;
+  IF nMal THEN
+    gBad:=1;
+    RETURN 0;
+  END;
+  RETURN vRes;
+END;
+
+// Densidad (continuas) o probabilidad puntual (discretas).
+PrPdf(nDis,lPar,nVal)
+BEGIN
+  LOCAL nRes,nKk,nIdx,nZz;
+  nRes:=0;
+  IF nDis==1 THEN
+    nZz:=(nVal-lPar(1))/lPar(2);
+    nRes:=EXP(-nZz*nZz/2)/(lPar(2)*2.506628274631);
+  END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT(A,C)",lPar(1),0,nVal); END;
+  IF nDis==3 THEN
+    IF nVal>0 THEN nRes:=PrCall("CHISQUARE(A,C)",lPar(1),0,nVal); END;
+  END;
+  IF nDis==4 THEN
+    IF nVal>0 THEN nRes:=PrCall("FISHER(A,B,C)",lPar(1),lPar(2),nVal); END;
+  END;
+  IF nDis==5 THEN
+    IF nVal>=0 THEN nRes:=lPar(1)*EXP(-lPar(1)*nVal); END;
+  END;
+  IF nDis==6 THEN
+    IF nVal>=lPar(1) AND nVal<=lPar(2) THEN nRes:=1/(lPar(2)-lPar(1)); END;
+  END;
+  IF nDis>=7 THEN
+    nKk:=ROUND(nVal,0);
+    IF nDis==7 THEN
+      IF nKk>=0 AND nKk<=lPar(1) THEN
+        nRes:=COMB(lPar(1),nKk)*lPar(2)^nKk*(1-lPar(2))^(lPar(1)-nKk);
+      END;
+    END;
+    IF nDis==8 THEN
+      IF nKk>=0 AND nKk<=lPar(1)+40*lPar(1)^0.5+100 THEN
+        nRes:=EXP(-lPar(1));
+        FOR nIdx FROM 1 TO nKk DO
+          nRes:=nRes*lPar(1)/nIdx;
+        END;
+      END;
+    END;
+    IF nDis==9 THEN
+      IF nKk>=1 AND nKk<=100000 THEN nRes:=(1-lPar(1))^(nKk-1)*lPar(1); END;
+    END;
+    IF nDis==10 THEN
+      IF nKk>=MAX(0,lPar(3)-(lPar(1)-lPar(2))) AND nKk<=MIN(lPar(3),lPar(2)) THEN
+        nRes:=COMB(lPar(2),nKk)*COMB(lPar(1)-lPar(2),lPar(3)-nKk)/COMB(lPar(1),lPar(3));
+      END;
+    END;
+  END;
+  RETURN nRes;
+END;
+
+// Menor valor posible de una distribucion discreta.
+PrBase(nDis,lPar)
+BEGIN
+  IF nDis==9 THEN RETURN 1; END;
+  IF nDis==10 THEN RETURN MAX(0,lPar(3)-(lPar(1)-lPar(2))); END;
+  RETURN 0;
+END;
+
+// Probabilidad acumulada P(X <= nVal).
+PrCdf(nDis,lPar,nVal)
+BEGIN
+  LOCAL nRes,nKk,nIdx,nTer;
+  nRes:=0;
+  IF nDis==1 THEN nRes:=PrCall("NORMALD_CDF(A,B,C)",lPar(1),lPar(2),nVal); END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT_CDF(A,C)",lPar(1),0,nVal); END;
+  IF nDis==3 THEN
+    IF nVal>0 THEN nRes:=PrCall("CHISQUARE_CDF(A,C)",lPar(1),0,nVal); END;
+  END;
+  IF nDis==4 THEN
+    IF nVal>0 THEN nRes:=PrCall("FISHER_CDF(A,B,C)",lPar(1),lPar(2),nVal); END;
+  END;
+  IF nDis==5 THEN
+    IF nVal>0 THEN nRes:=1-EXP(-lPar(1)*nVal); END;
+  END;
+  IF nDis==6 THEN
+    nRes:=(nVal-lPar(1))/(lPar(2)-lPar(1));
+    nRes:=MAX(0,MIN(1,nRes));
+  END;
+  IF nDis==7 OR nDis==10 THEN
+    nKk:=FLOOR(nVal);
+    IF nDis==7 THEN nKk:=MIN(nKk,lPar(1)); END;
+    IF nDis==10 THEN nKk:=MIN(nKk,MIN(lPar(3),lPar(2))); END;
+    FOR nIdx FROM PrBase(nDis,lPar) TO nKk DO
+      nRes:=nRes+PrPdf(nDis,lPar,nIdx);
+    END;
+    nRes:=MIN(1,nRes);
+  END;
+  IF nDis==8 THEN
+    nKk:=FLOOR(nVal);
+    nKk:=MIN(nKk,CEILING(lPar(1)+40*lPar(1)^0.5+100));
+    IF nKk>=0 THEN
+      nTer:=EXP(-lPar(1));
+      nRes:=nTer;
+      FOR nIdx FROM 1 TO nKk DO
+        nTer:=nTer*lPar(1)/nIdx;
+        nRes:=nRes+nTer;
+      END;
+      nRes:=MIN(1,nRes);
+    END;
+  END;
+  IF nDis==9 THEN
+    nKk:=MIN(FLOOR(nVal),100000);
+    IF nKk>=1 THEN nRes:=1-(1-lPar(1))^nKk; END;
+  END;
+  RETURN nRes;
+END;
+
+// Valor x tal que P(X <= x) = nPro.
+PrIcdf(nDis,lPar,nPro)
+BEGIN
+  LOCAL nRes,nKk,nAcu,nTope;
+  nRes:=0;
+  IF nDis==1 THEN nRes:=PrCall("NORMALD_ICDF(A,B,C)",lPar(1),lPar(2),nPro); END;
+  IF nDis==2 THEN nRes:=PrCall("STUDENT_ICDF(A,C)",lPar(1),0,nPro); END;
+  IF nDis==3 THEN nRes:=PrCall("CHISQUARE_ICDF(A,C)",lPar(1),0,nPro); END;
+  IF nDis==4 THEN nRes:=PrCall("FISHER_ICDF(A,B,C)",lPar(1),lPar(2),nPro); END;
+  IF nDis==5 THEN nRes:=-LN(1-nPro)/lPar(1); END;
+  IF nDis==6 THEN nRes:=lPar(1)+nPro*(lPar(2)-lPar(1)); END;
+  IF nDis>=7 THEN
+    nKk:=PrBase(nDis,lPar);
+    nAcu:=PrPdf(nDis,lPar,nKk);
+    nTope:=nKk+5000;
+    WHILE nAcu<nPro-0.000000000001 AND nKk<nTope DO
+      nKk:=nKk+1;
+      nAcu:=nAcu+PrPdf(nDis,lPar,nKk);
+    END;
+    nRes:=nKk;
+  END;
+  RETURN nRes;
+END;
+
+// Devuelve {media, varianza}. Un -1 indica que no existe.
+PrMom(nDis,lPar)
+BEGIN
+  LOCAL nMed,nVar,nPp,nQq;
+  nMed:=0;
+  nVar:=0;
+  IF nDis==1 THEN
+    nMed:=lPar(1);
+    nVar:=lPar(2)^2;
+  END;
+  IF nDis==2 THEN
+    nMed:=0;
+    nVar:=-1;
+    IF lPar(1)>2 THEN nVar:=lPar(1)/(lPar(1)-2); END;
+  END;
+  IF nDis==3 THEN
+    nMed:=lPar(1);
+    nVar:=2*lPar(1);
+  END;
+  IF nDis==4 THEN
+    nMed:=-1;
+    nVar:=-1;
+    nPp:=lPar(1);
+    nQq:=lPar(2);
+    IF nQq>2 THEN nMed:=nQq/(nQq-2); END;
+    IF nQq>4 THEN nVar:=2*nQq^2*(nPp+nQq-2)/(nPp*(nQq-2)^2*(nQq-4)); END;
+  END;
+  IF nDis==5 THEN
+    nMed:=1/lPar(1);
+    nVar:=1/lPar(1)^2;
+  END;
+  IF nDis==6 THEN
+    nMed:=(lPar(1)+lPar(2))/2;
+    nVar:=(lPar(2)-lPar(1))^2/12;
+  END;
+  IF nDis==7 THEN
+    nMed:=lPar(1)*lPar(2);
+    nVar:=lPar(1)*lPar(2)*(1-lPar(2));
+  END;
+  IF nDis==8 THEN
+    nMed:=lPar(1);
+    nVar:=lPar(1);
+  END;
+  IF nDis==9 THEN
+    nMed:=1/lPar(1);
+    nVar:=(1-lPar(1))/lPar(1)^2;
+  END;
+  IF nDis==10 THEN
+    nPp:=lPar(2)/lPar(1);
+    nMed:=lPar(3)*nPp;
+    nVar:=0;
+    IF lPar(1)>1 THEN
+      nVar:=lPar(3)*nPp*(1-nPp)*(lPar(1)-lPar(3))/(lPar(1)-1);
+    END;
+  END;
+  RETURN {nMed,nVar};
+END;
+
+// Rango horizontal del grafico de una distribucion.
+PrRango(nDis,lPar)
+BEGIN
+  LOCAL nLa,nLb,lMom,nDes;
+  nLa:=0;
+  nLb:=1;
+  lMom:=PrMom(nDis,lPar);
+  nDes:=1;
+  IF lMom(2)>0 THEN nDes:=lMom(2)^0.5; END;
+  IF nDis==1 THEN
+    nLa:=lPar(1)-4*lPar(2);
+    nLb:=lPar(1)+4*lPar(2);
+  END;
+  IF nDis==2 THEN
+    nLa:=-5;
+    nLb:=5;
+  END;
+  IF nDis==3 THEN
+    nLa:=0;
+    nLb:=MAX(8,lPar(1)+4*nDes);
+  END;
+  IF nDis==4 THEN
+    nLa:=0;
+    nLb:=5;
+  END;
+  IF nDis==5 THEN
+    nLa:=0;
+    nLb:=6/lPar(1);
+  END;
+  IF nDis==6 THEN
+    nLa:=lPar(1)-0.25*(lPar(2)-lPar(1));
+    nLb:=lPar(2)+0.25*(lPar(2)-lPar(1));
+  END;
+  IF nDis==7 OR nDis==10 THEN
+    nLa:=PrBase(nDis,lPar);
+    nLb:=lPar(1);
+    IF nDis==10 THEN nLb:=MIN(lPar(3),lPar(2)); END;
+    IF nLb-nLa>60 THEN
+      nLa:=MAX(nLa,FLOOR(lMom(1)-4*nDes));
+      nLb:=MIN(nLb,CEILING(lMom(1)+4*nDes));
+    END;
+  END;
+  IF nDis==8 THEN
+    nLa:=MAX(0,FLOOR(lPar(1)-4*nDes));
+    nLb:=MAX(10,CEILING(lPar(1)+4*nDes));
+  END;
+  IF nDis==9 THEN
+    nLa:=1;
+    nLb:=MIN(60,MAX(10,CEILING(5/lPar(1))));
+  END;
+  RETURN {nLa,nLb};
+END;
+
+PrNombre(nDis)
+BEGIN
+  LOCAL lNom;
+  lNom:={"Normal","t de Student","Chi cuadrado","F de Fisher","Exponencial",
+      "Uniforme","Binomial","Poisson","Geométrica","Hipergeométrica"};
+  RETURN lNom(nDis);
+END;
+
+// Rotulos de los parametros de cada distribucion.
+PrRotulos(nDis)
+BEGIN
+  IF nDis==1 THEN RETURN {"Media = ","Desvío estándar = "}; END;
+  IF nDis==2 THEN RETURN {"Grados de libertad = "}; END;
+  IF nDis==3 THEN RETURN {"Grados de libertad = "}; END;
+  IF nDis==4 THEN RETURN {"GL numerador = ","GL denominador = "}; END;
+  IF nDis==5 THEN RETURN {"Tasa lambda = "}; END;
+  IF nDis==6 THEN RETURN {"Mínimo a = ","Máximo b = "}; END;
+  IF nDis==7 THEN RETURN {"Ensayos n = ","Prob. de éxito p = "}; END;
+  IF nDis==8 THEN RETURN {"Media lambda = "}; END;
+  IF nDis==9 THEN RETURN {"Prob. de éxito p = "}; END;
+  RETURN {"Población N = ","Éxitos en N:  K = ","Muestra n = "};
+END;
+
+PrIniciales(nDis)
+BEGIN
+  IF nDis==1 THEN RETURN {0,1}; END;
+  IF nDis==2 THEN RETURN {10}; END;
+  IF nDis==3 THEN RETURN {5}; END;
+  IF nDis==4 THEN RETURN {5,10}; END;
+  IF nDis==5 THEN RETURN {1}; END;
+  IF nDis==6 THEN RETURN {0,1}; END;
+  IF nDis==7 THEN RETURN {10,0.5}; END;
+  IF nDis==8 THEN RETURN {3}; END;
+  IF nDis==9 THEN RETURN {0.3}; END;
+  RETURN {50,10,5};
+END;
+
+// Revisa los parametros. Devuelve "" si estan bien o el motivo.
+PrRevisa(nDis,lPar)
+BEGIN
+  IF nDis==1 THEN
+    IF lPar(2)<=0 THEN RETURN "El desvío estándar debe ser mayor que 0."; END;
+  END;
+  IF nDis==2 OR nDis==3 OR nDis==5 OR nDis==8 THEN
+    IF lPar(1)<=0 THEN RETURN "El parámetro debe ser mayor que 0."; END;
+  END;
+  IF nDis==8 THEN
+    IF lPar(1)>2000 THEN RETURN "Con lambda mayor que 2000 conviene usar la Normal."; END;
+  END;
+  IF nDis==7 THEN
+    IF lPar(1)>2000 THEN RETURN "Con n mayor que 2000 conviene usar la Normal."; END;
+  END;
+  IF nDis==10 THEN
+    IF lPar(1)>2000 THEN RETURN "N debe ser 2000 como máximo."; END;
+  END;
+  IF nDis==4 THEN
+    IF lPar(1)<=0 OR lPar(2)<=0 THEN RETURN "Los grados de libertad deben ser mayores que 0."; END;
+  END;
+  IF nDis==6 THEN
+    IF lPar(2)<=lPar(1) THEN RETURN "El máximo debe ser mayor que el mínimo."; END;
+  END;
+  IF nDis==7 THEN
+    IF lPar(1)<1 OR lPar(1)<>ROUND(lPar(1),0) THEN RETURN "n debe ser un entero mayor o igual a 1."; END;
+    IF lPar(2)<=0 OR lPar(2)>=1 THEN RETURN "p debe estar entre 0 y 1."; END;
+  END;
+  IF nDis==9 THEN
+    IF lPar(1)<=0 OR lPar(1)>=1 THEN RETURN "p debe estar entre 0 y 1."; END;
+  END;
+  IF nDis==10 THEN
+    IF lPar(1)<1 OR lPar(2)<0 OR lPar(2)>lPar(1) OR lPar(3)<1 OR lPar(3)>lPar(1) THEN
+      RETURN "Revisar: K y n no pueden superar a N.";
+    END;
+    IF lPar(1)<>ROUND(lPar(1),0) OR lPar(2)<>ROUND(lPar(2),0) OR lPar(3)<>ROUND(lPar(3),0) THEN
+      RETURN "N, K y n deben ser enteros.";
+    END;
+  END;
+  RETURN "";
+END;
+
+// Pantalla de resultado con el grafico y la zona sombreada.
+// nLo y nHi marcan la zona. sRes es el renglon principal.
+PrPantalla(nDis,lPar,nLo,nHi,sRes,sSeg)
+BEGIN
+  LOCAL lRan,nXa,nXb,nIdx,nVal,nMaxY,lVy,nPx;
+  LOCAL nPy,nPya,nSy,lMom,sTit,nKk,nAnc;
+  LOCAL nCol,nBor,lEvt,sMom,nCnt;
+  lRan:=PrRango(nDis,lPar);
+  nXa:=lRan(1);
+  nXb:=lRan(2);
+  // el rango se amplia para que la zona pedida se vea
+  IF nLo>-100000000 AND nLo<nXa THEN nXa:=nLo-0.05*(nXb-nLo); END;
+  IF nHi<100000000 AND nHi>nXb THEN nXb:=nHi+0.05*(nHi-nXa); END;
+  IF nDis>=7 THEN
+    nXa:=FLOOR(nXa);
+    nXb:=CEILING(nXb);
+    IF nXb-nXa>150 THEN nXb:=nXa+150; END;
+    IF nXb<=nXa THEN nXb:=nXa+1; END;
+  END;
+  sTit:=PrNombre(nDis);
+  UiFondo(sTit);
+  RECT_P(6,28,314,146,RGB(200,206,220),RGB(255,255,255));
+  gBad:=0;
+  IF nDis<7 THEN
+    lVy:={};
+    nMaxY:=0;
+    FOR nIdx FROM 0 TO 152 DO
+      nVal:=nXa+(nXb-nXa)*nIdx/152;
+      lVy:=CONCAT(lVy,{PrPdf(nDis,lPar,nVal)});
+      nMaxY:=MAX(nMaxY,lVy(nIdx+1));
+    END;
+    IF nMaxY<=0 THEN nMaxY:=1; END;
+    nSy:=108/nMaxY;
+    nPya:=145;
+    FOR nIdx FROM 0 TO 152 DO
+      nVal:=nXa+(nXb-nXa)*nIdx/152;
+      nPx:=8+nIdx*2;
+      nPy:=IP(145-MIN(lVy(nIdx+1),nMaxY)*nSy);
+      IF nVal>=nLo AND nVal<=nHi THEN
+        LINE_P(nPx,nPy,nPx,145,RGB(150,195,240));
+        LINE_P(nPx+1,nPy,nPx+1,145,RGB(150,195,240));
+      END;
+      IF nIdx>0 THEN
+        LINE_P(nPx-2,nPya,nPx,nPy,RGB(24,48,88));
+        LINE_P(nPx-2,nPya-1,nPx,nPy-1,RGB(24,48,88));
+      END;
+      nPya:=nPy;
+    END;
+  ELSE
+    nCnt:=nXb-nXa+1;
+    nAnc:=304/nCnt;
+    nMaxY:=0;
+    lVy:={};
+    FOR nKk FROM nXa TO nXb DO
+      lVy:=CONCAT(lVy,{PrPdf(nDis,lPar,nKk)});
+      nMaxY:=MAX(nMaxY,lVy(nKk-nXa+1));
+    END;
+    IF nMaxY<=0 THEN nMaxY:=1; END;
+    nSy:=108/nMaxY;
+    FOR nKk FROM nXa TO nXb DO
+      nPx:=IP(8+(nKk-nXa)*nAnc);
+      nPy:=IP(145-lVy(nKk-nXa+1)*nSy);
+      nCol:=RGB(170,178,196);
+      nBor:=RGB(120,128,150);
+      IF nKk>=nLo AND nKk<=nHi THEN
+        nCol:=RGB(60,130,215);
+        nBor:=RGB(24,48,88);
+      END;
+      RECT_P(nPx,nPy,IP(MAX(nPx,nPx+nAnc-2)),145,nBor,nCol);
+    END;
+  END;
+  LINE_P(6,146,314,146,RGB(120,125,140));
+  TEXTOUT_P(UiNum(nXa,4),8,148,1,RGB(90,95,110));
+  TEXTOUT_P(UiNum(nXb,4),276,148,1,RGB(90,95,110));
+  TEXTOUT_P(sRes,8,161,4,RGB(20,70,150),306);
+  TEXTOUT_P(sSeg,8,183,2,RGB(20,20,30),306);
+  lMom:=PrMom(nDis,lPar);
+  sMom:="Media: ";
+  IF lMom(1)==-1 AND nDis==4 THEN
+    sMom:=sMom+"no existe";
+  ELSE
+    sMom:=sMom+UiNum(lMom(1),6);
+  END;
+  sMom:=sMom+"    Desvío: ";
+  IF lMom(2)<0 THEN
+    sMom:=sMom+"no existe";
+  ELSE
+    sMom:=sMom+UiNum(lMom(2)^0.5,6);
+  END;
+  TEXTOUT_P(sMom,8,201,2,RGB(105,110,128),306);
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+MdProba()
+BEGIN
+  LOCAL nDis,nTip,nFin,nFin2,lPar,lLab,lIni,lAyu;
+  LOCAL lDat,nNp,nIdx,sMal,nVa,nVb,nPro,sRes;
+  LOCAL sSeg,lOpc,lSim,nQq,nGrande,lUlt,nDisc;
+  nFin:=0;
+  nGrande:=1000000000;
+  REPEAT
+    nDis:=UiMenu("Probabilidad",{"Normal","t de Student","Chi cuadrado",
+        "F de Fisher","Exponencial","Uniforme","Binomial","Poisson","Geométrica",
+        "Hipergeométrica"},{"N","t","X2","F","exp","U","Bin","Poi","Geo","Hip"});
+    IF nDis==0 THEN
+      nFin:=1;
+    ELSE
+      lPar:=PrIniciales(nDis);
+      lUlt:={0,1,0.95};
+      nDisc:=0;
+      IF nDis>=7 THEN
+        nDisc:=1;
+        lUlt:={2,5,0.95};
+      END;
+      nFin2:=0;
+      REPEAT
+        lOpc:={"P(X <= a)   acumulada a izquierda","P(X >= a)   cola derecha",
+            "P(a <= X <= b)   entre dos valores","Valor x para una probabilidad"};
+        lSim:={"<=a",">=a","a-b","x=?"};
+        IF nDisc THEN
+          lOpc:=CONCAT(lOpc,{"P(X = a)   valor exacto"});
+          lSim:=CONCAT(lSim,{"=a"});
+        END;
+        nTip:=UiMenu(PrNombre(nDis),lOpc,lSim);
+        IF nTip==0 THEN
+          nFin2:=1;
+        ELSE
+          lLab:=PrRotulos(nDis);
+          nNp:=SIZE(lLab);
+          lIni:=lPar;
+          lAyu:={};
+          FOR nIdx FROM 1 TO nNp DO
+            lAyu:=CONCAT(lAyu,{"Parámetro de la distribución "+PrNombre(nDis)});
+          END;
+          IF nTip==1 OR nTip==2 OR nTip==5 THEN
+            lLab:=CONCAT(lLab,{"a = "});
+            lAyu:=CONCAT(lAyu,{"Valor de la variable"});
+            lIni:=CONCAT(lIni,{lUlt(1)});
+          END;
+          IF nTip==3 THEN
+            lLab:=CONCAT(lLab,{"a = ","b = "});
+            lAyu:=CONCAT(lAyu,{"Extremo inferior","Extremo superior"});
+            lIni:=CONCAT(lIni,{lUlt(1),lUlt(2)});
+          END;
+          IF nTip==4 THEN
+            lLab:=CONCAT(lLab,{"Probabilidad = "});
+            lAyu:=CONCAT(lAyu,{"Probabilidad acumulada a izquierda, entre 0 y 1"});
+            lIni:=CONCAT(lIni,{lUlt(3)});
+          END;
+          lDat:=UiPedir(PrNombre(nDis),lLab,lAyu,lIni,0);
+          IF SIZE(lDat)>0 THEN
+            lPar:={};
+            FOR nIdx FROM 1 TO nNp DO
+              lPar:=CONCAT(lPar,{lDat(nIdx)});
+            END;
+            sMal:=PrRevisa(nDis,lPar);
+            nVa:=lDat(nNp+1);
+            nVb:=nVa;
+            IF nTip==3 THEN
+              nVb:=lDat(nNp+2);
+              IF nVb<nVa THEN sMal:="b debe ser mayor o igual que a."; END;
+            END;
+            IF nTip==4 THEN
+              IF nVa<=0 OR nVa>=1 THEN sMal:="La probabilidad debe estar entre 0 y 1."; END;
+            END;
+            IF sMal<>"" THEN
+              UiAviso(sMal);
+              lPar:=PrIniciales(nDis);
+            ELSE
+              UiCalc(PrNombre(nDis));
+              gBad:=0;
+              sSeg:="";
+              IF nTip==1 THEN
+                lUlt(1):=nVa;
+                nPro:=PrCdf(nDis,lPar,nVa);
+                sRes:="P(X <= "+UiNum(nVa,6)+") = "+UiNum(nPro,6);
+                sSeg:="Complemento: P(X > "+UiNum(nVa,6)+") = "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,-nGrande,nVa,sRes,sSeg); END;
+              END;
+              IF nTip==2 THEN
+                lUlt(1):=nVa;
+                IF nDisc THEN
+                  nPro:=1-PrCdf(nDis,lPar,CEILING(nVa)-1);
+                ELSE
+                  nPro:=1-PrCdf(nDis,lPar,nVa);
+                END;
+                sRes:="P(X >= "+UiNum(nVa,6)+") = "+UiNum(nPro,6);
+                sSeg:="Complemento: P(X < "+UiNum(nVa,6)+") = "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,nVa,nGrande,sRes,sSeg); END;
+              END;
+              IF nTip==3 THEN
+                lUlt(1):=nVa;
+                lUlt(2):=nVb;
+                IF nDisc THEN
+                  nPro:=PrCdf(nDis,lPar,nVb)-PrCdf(nDis,lPar,CEILING(nVa)-1);
+                ELSE
+                  nPro:=PrCdf(nDis,lPar,nVb)-PrCdf(nDis,lPar,nVa);
+                END;
+                sRes:="P("+UiNum(nVa,5)+" <= X <= "+UiNum(nVb,5)+") = "+UiNum(nPro,6);
+                sSeg:="Fuera de ese intervalo: "+UiNum(1-nPro,6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,nVa,nVb,sRes,sSeg); END;
+              END;
+              IF nTip==4 THEN
+                lUlt(3):=nVa;
+                nQq:=PrIcdf(nDis,lPar,nVa);
+                sRes:="x = "+UiNum(nQq,7);
+                sSeg:="P(X <= x) = "+UiNum(nVa,6);
+                IF nDisc THEN
+                  sSeg:="Menor x con P(X <= x) >= "+UiNum(nVa,6)+"  (da "+UiNum(PrCdf(nDis,lPar,nQq),6)+")";
+                END;
+                IF gBad==0 THEN PrPantalla(nDis,lPar,-nGrande,nQq,sRes,sSeg); END;
+              END;
+              IF nTip==5 THEN
+                lUlt(1):=nVa;
+                nPro:=PrPdf(nDis,lPar,nVa);
+                sRes:="P(X = "+UiNum(ROUND(nVa,0),6)+") = "+UiNum(nPro,6);
+                sSeg:="Acumulada: P(X <= "+UiNum(ROUND(nVa,0),6)+") = "+UiNum(PrCdf(nDis,lPar,nVa),6);
+                IF gBad==0 THEN PrPantalla(nDis,lPar,ROUND(nVa,0),ROUND(nVa,0),sRes,sSeg); END;
+              END;
+              IF gBad THEN
+                UiAviso("No se pudo calcular con esos valores.");
+                gBad:=0;
+              END;
+            END;
+          END;
+        END;
+      UNTIL nFin2;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Coordenadas ----------
+
+// Angulo en radianes del punto (nPx,nPy), entre -pi y pi.
+CoAngulo(nPx,nPy)
+BEGIN
+  LOCAL nRad,nAng;
+  nRad:=(nPx^2+nPy^2)^0.5;
+  IF nRad==0 THEN RETURN 0; END;
+  nAng:=ACOS(MAX(-1,MIN(1,nPx/nRad)))/gAng;
+  IF nPy<0 THEN nAng:=-nAng; END;
+  RETURN nAng;
+END;
+
+// Quita el ruido numerico: un valor despreciable frente a nRef pasa a 0.
+CoCero(nVal,nRef)
+BEGIN
+  IF ABS(nVal)<0.0000000001*ABS(nRef) THEN RETURN 0; END;
+  RETURN nVal;
+END;
+
+// Dibuja un punto del plano con sus dos juegos de coordenadas.
+CoPunto(nPx,nPy)
+BEGIN
+  LOCAL nRad,nAng,nEsc,nQx,nQy,lEvt,nIdx,nQa;
+  LOCAL nQb,nAa,nRp;
+  nRad:=(nPx^2+nPy^2)^0.5;
+  nAng:=CoAngulo(nPx,nPy);
+  UiFondo("Coordenadas");
+  TEXTOUT_P("Cartesianas",8,32,1,RGB(105,110,128));
+  TEXTOUT_P("x = "+UiNum(nPx,8),8,46,4,RGB(20,20,30));
+  TEXTOUT_P("y = "+UiNum(nPy,8),8,67,4,RGB(20,20,30));
+  TEXTOUT_P("Polares",8,96,1,RGB(105,110,128));
+  TEXTOUT_P("r = "+UiNum(nRad,8),8,110,4,RGB(20,70,150));
+  TEXTOUT_P("áng = "+UiNum(nAng*57.2957795130823,7)+"°",8,131,4,RGB(20,70,150));
+  TEXTOUT_P("áng = "+UiNum(nAng,7)+" rad",8,153,3,RGB(20,70,150));
+  IF nAng<0 THEN
+    TEXTOUT_P("o bien "+UiNum(nAng*57.2957795130823+360,7)+"°  =  "+UiNum(nAng+6.28318530717959,
+        7)+" rad",8,178,2,RGB(105,110,128));
+  END;
+  RECT_P(190,30,312,152,RGB(200,206,220),RGB(255,255,255));
+  LINE_P(194,91,308,91,RGB(150,155,170));
+  LINE_P(251,34,251,148,RGB(150,155,170));
+  nEsc:=MAX(ABS(nPx),ABS(nPy));
+  IF nEsc>0 THEN
+    nQx:=IP(251+50*nPx/nEsc);
+    nQy:=IP(91-50*nPy/nEsc);
+    // arco del angulo
+    nRp:=16;
+    nQa:=251+nRp;
+    nQb:=91;
+    FOR nIdx FROM 1 TO 24 DO
+      nAa:=nAng*nIdx/24;
+      LINE_P(IP(nQa),IP(nQb),IP(251+nRp*COS(nAa*gAng)),IP(91-nRp*SIN(nAa*gAng)),RGB(60,130,215));
+      nQa:=251+nRp*COS(nAa*gAng);
+      nQb:=91-nRp*SIN(nAa*gAng);
+    END;
+    LINE_P(251,91,nQx,nQy,RGB(200,50,40));
+    LINE_P(251,92,nQx,nQy+1,RGB(200,50,40));
+    RECT_P(nQx-3,nQy-3,nQx+3,nQy+3,RGB(200,50,40),RGB(200,50,40));
+  END;
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+// Pasa un angulo a radianes segun la unidad elegida (1 grados, 2 rad).
+CoRad(nAng,nUni)
+BEGIN
+  IF nUni==1 THEN RETURN nAng*0.0174532925199433; END;
+  RETURN nAng;
+END;
+
+MdCoord()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nAng,nRad,lLin,nPx;
+  LOCAL nPy,nPz,nRho,nFi,nUd,sFun,nTh,sHasta;
+  LOCAL nMal,nLimA,nLimB;
+  nFin:=0;
+  nUd:=1;
+  REPEAT
+    nOpc:=UiMenu("Coordenadas",{"Cartesianas -> Polares","Polares -> Cartesianas",
+        "Cartesianas -> Cilíndricas y esféricas","Cilíndricas -> Cartesianas y esféricas",
+        "Esféricas -> Cartesianas y cilíndricas","Gráfico polar  r = f(t)","Ecuación cartesiana -> polar"},
+        {"xy","r,t","xyz","cil","esf","r(t)","ec"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Cartesianas -> Polares",{"x = ","y = "},{"Coordenada horizontal",
+          "Coordenada vertical"},{1,1},0);
+      IF SIZE(lDat)>0 THEN CoPunto(lDat(1),lDat(2)); END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Polares -> Cartesianas",{"r = ","ángulo = ","1 = grados, 2 = rad: "},
+          {"Radio","Ángulo medido desde el eje x","Escribir 1 para grados o 2 para radianes"},
+          {1,45,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(3);
+        nAng:=CoRad(lDat(2),nUd);
+        CoPunto(CoCero(lDat(1)*COS(nAng*gAng),lDat(1)),CoCero(lDat(1)*SIN(nAng*gAng),lDat(1)));
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Cartesianas",{"x = ","y = ","z = "},{"Coordenada x",
+          "Coordenada y","Coordenada z"},{1,1,1},0);
+      IF SIZE(lDat)>0 THEN
+        nPx:=lDat(1);
+        nPy:=lDat(2);
+        nPz:=lDat(3);
+        nRad:=(nPx^2+nPy^2)^0.5;
+        nTh:=CoAngulo(nPx,nPy);
+        nRho:=(nPx^2+nPy^2+nPz^2)^0.5;
+        nFi:=CoAngulo(nPz,nRad);
+        lLin:={"#Cartesianas"," x = "+UiNum(nPx,8)+"   y = "+UiNum(nPy,
+            8)+"   z = "+UiNum(nPz,8),"#Cilíndricas  (r, ángulo, z)","!r = "+UiNum(nRad,
+            8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad",
+            "!z = "+UiNum(nPz,8),"#Esféricas  (rho, ángulo, fi)","!rho = "+UiNum(nRho,
+            8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad",
+            "!fi = "+UiNum(nFi*57.2957795130823,7)+"°  =  "+UiNum(nFi,7)+" rad","~áng: ángulo en el plano xy desde el eje x. fi: ángulo medido desde el eje z."};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==4 THEN
+      lDat:=UiPedir("Cilíndricas",{"r = ","ángulo = ","z = ","1 = grados, 2 = rad: "},
+          {"Distancia al eje z","Ángulo en el plano xy desde el eje x","Altura",
+          "Escribir 1 para grados o 2 para radianes"},{1,45,1,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(4);
+        nRad:=lDat(1);
+        nTh:=CoRad(lDat(2),nUd);
+        nPz:=lDat(3);
+        nPx:=CoCero(nRad*COS(nTh*gAng),nRad);
+        nPy:=CoCero(nRad*SIN(nTh*gAng),nRad);
+        nRho:=(nRad^2+nPz^2)^0.5;
+        nFi:=CoAngulo(nPz,nRad);
+        lLin:={"#Cilíndricas"," r = "+UiNum(nRad,8)+"   áng = "+UiNum(lDat(2),
+            7)+"   z = "+UiNum(nPz,8),"#Cartesianas","!x = "+UiNum(nPx,8),"!y = "+UiNum(nPy,
+            8),"!z = "+UiNum(nPz,8),"#Esféricas  (rho, ángulo, fi)","!rho = "+UiNum(nRho,
+            8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad",
+            "!fi = "+UiNum(nFi*57.2957795130823,7)+"°  =  "+UiNum(nFi,7)+" rad","~fi: ángulo medido desde el eje z."};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==5 THEN
+      lDat:=UiPedir("Esféricas",{"rho = ","ángulo = ","fi = ","1 = grados, 2 = rad: "},
+          {"Distancia al origen","Ángulo en el plano xy desde el eje x","Ángulo medido desde el eje z",
+          "Escribir 1 para grados o 2 para radianes"},{1,45,60,nUd},0);
+      IF SIZE(lDat)>0 THEN
+        nUd:=lDat(4);
+        nRho:=lDat(1);
+        nTh:=CoRad(lDat(2),nUd);
+        nFi:=CoRad(lDat(3),nUd);
+        nRad:=CoCero(nRho*SIN(nFi*gAng),nRho);
+        nPz:=CoCero(nRho*COS(nFi*gAng),nRho);
+        nPx:=CoCero(nRad*COS(nTh*gAng),nRho);
+        nPy:=CoCero(nRad*SIN(nTh*gAng),nRho);
+        lLin:={"#Esféricas"," rho = "+UiNum(nRho,8)+"   áng = "+UiNum(lDat(2),
+            7)+"   fi = "+UiNum(lDat(3),7),"#Cartesianas","!x = "+UiNum(nPx,8),"!y = "+UiNum(nPy,
+            8),"!z = "+UiNum(nPz,8),"#Cilíndricas  (r, ángulo, z)","!r = "+UiNum(nRad,
+            8),"!áng = "+UiNum(nTh*57.2957795130823,7)+"°  =  "+UiNum(nTh,7)+" rad",
+            "!z = "+UiNum(nPz,8)};
+        UiVer("Coordenadas",lLin);
+      END;
+    END;
+    IF nOpc==6 THEN
+      sHasta:="2*pi";
+      IF gAng>1.5 THEN sHasta:="360"; END;
+      IF gAng>60 THEN sHasta:="400"; END;
+      lDat:=UiPedir("Gráfico polar",{"r(t) = ","t desde = ","t hasta = "},
+          {"Radio en función del ángulo t. Ej: 2*sin(3*t)","Ángulo inicial","Ángulo final (en la unidad de la calculadora)"},
+          {"2*sin(3*t)","0",sHasta},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        nLimA:=ExValor(lDat(2));
+        nMal:=nMal+gBad;
+        nLimB:=ExValor(lDat(3));
+        nMal:=nMal+gBad;
+        IF nMal>0 OR nLimB<=nLimA THEN
+          UiAviso("Revisar el rango del ángulo.");
+        ELSE
+          IF ExPrep(lDat(1),{"t",CHAR(952),"x"},{"X","X","X"}) THEN
+            UiGraf("r = "+lDat(1),1,nLimA,nLimB);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==7 THEN
+      lDat:=UiPedir("Ecuación a polares",{"Ecuación: "},{"En x e y. Ej: x^2+y^2=4*x"},{"x^2+y^2=4*x"},1);
+      IF SIZE(lDat)>0 THEN
+        UiCalc("Ecuación a polares");
+        sFun:=ExCasT(lDat(1));
+        lLin:={"#Ecuación cartesiana"," "+sFun,"#En polares (x = r*cos(t), y = r*sin(t))",
+            "!"+ExCas("simplify(subst("+sFun+",[x=r*cos(t),y=r*sin(t)]))"),"#Despejando r",
+            "!"+ExCas("solve(simplify(subst("+sFun+",[x=r*cos(t),y=r*sin(t)])),r)")};
+        UiVer("Ecuación a polares",lLin);
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Iteracion ----------
+
+MdIteracion()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nXx,nXn,nTol,nMaxIt,nIt;
+  LOCAL lLin,nErr,nOk,nMal,lNum,nIdx,nFx,nDf;
+  LOCAL nHh,nXa,nXb,nFa,nFb,nXm,nFm,sEst;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Iteración",{"Punto fijo   x = g(x)","Newton-Raphson   f(x) = 0",
+        "Bisección   f(x) = 0 en [a, b]"},{"g(x)","N-R","a|b"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Punto fijo",{"g(x) = ","x inicial = ","Tolerancia = ",
+          "Máx. iteraciones = "},{"Se itera x = g(x). Ej: cos(x)","Valor de arranque",
+          "Corta cuando el cambio es menor que este valor","Cantidad máxima de pasos"},
+          {"cos(x)","1","0.000001","100"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 4 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Punto fijo");
+            nXx:=lNum(1);
+            nTol:=ABS(lNum(2));
+            nMaxIt:=MAX(1,MIN(500,ROUND(lNum(3),0)));
+            nIt:=0;
+            nOk:=0;
+            nMal:=0;
+            lLin:={"#Iteraciones de x = "+lDat(1)+"   (dif = cambio entre pasos)"," 0)  x = "+UiNum(nXx,8)};
+            WHILE nIt<nMaxIt AND nOk==0 AND nMal==0 DO
+              nIt:=nIt+1;
+              gBad:=0;
+              nXn:=ExF(nXx);
+              IF gBad THEN
+                nMal:=1;
+              ELSE
+                nErr:=ABS(nXn-nXx);
+                nXx:=nXn;
+                IF nIt<=40 OR nErr<=nTol THEN
+                  lLin:=CONCAT(lLin,{" "+STRING(nIt)+")  x = "+UiNum(nXx,8)+"   dif = "+UiNum(nErr,2)});
+                END;
+                IF nErr<=nTol THEN nOk:=1; END;
+                IF ABS(nXx)>10^30 THEN nMal:=2; END;
+              END;
+            END;
+            gBad:=0;
+            sEst:="~Convergió en "+STRING(nIt)+" iteraciones.";
+            IF nOk==0 THEN sEst:="~No convergió en "+STRING(nIt)+" iteraciones. Probar otra forma de g(x) u otro arranque."; END;
+            IF nMal==1 THEN sEst:="~La función no se pudo evaluar. Revisar g(x) y el arranque."; END;
+            IF nMal==2 THEN sEst:="~Los valores se alejan cada vez más: esta g(x) diverge."; END;
+            lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXx,10),sEst,""},lLin);
+            UiVer("Punto fijo",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Newton-Raphson",{"f(x) = ","x inicial = ","Tolerancia = "},
+          {"Se busca f(x) = 0. También acepta una ecuación con =","Valor de arranque, cercano a la solución",
+          "Corta cuando el cambio es menor que este valor"},{"x^3-2*x-5","2","0.000001"},
+          1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 3 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Newton-Raphson");
+            nXx:=lNum(1);
+            nTol:=ABS(lNum(2));
+            nIt:=0;
+            nOk:=0;
+            nMal:=0;
+            lLin:={"#Iteraciones   (dif = cambio entre pasos)"," 0)  x = "+UiNum(nXx,8)};
+            WHILE nIt<100 AND nOk==0 AND nMal==0 DO
+              nIt:=nIt+1;
+              gBad:=0;
+              nHh:=0.00001*MAX(ABS(nXx),0.01);
+              nFx:=ExF(nXx);
+              nDf:=(ExF(nXx+nHh)-ExF(nXx-nHh))/(2*nHh);
+              IF gBad THEN
+                nMal:=1;
+              ELSE
+                IF nDf==0 THEN
+                  nMal:=3;
+                ELSE
+                  nXn:=nXx-nFx/nDf;
+                  nErr:=ABS(nXn-nXx);
+                  nXx:=nXn;
+                  lLin:=CONCAT(lLin,{" "+STRING(nIt)+")  x = "+UiNum(nXx,8)+"   dif = "+UiNum(nErr,2)});
+                  IF nErr<=nTol THEN nOk:=1; END;
+                  IF ABS(nXx)>10^30 THEN nMal:=2; END;
+                END;
+              END;
+            END;
+            gBad:=0;
+            nFx:=ExF(nXx);
+            gBad:=0;
+            sEst:="~Convergió en "+STRING(nIt)+" iteraciones.   f(x) = "+UiNum(nFx,3);
+            IF nOk==0 THEN sEst:="~No convergió. Probar con otro valor de arranque."; END;
+            IF nMal==1 THEN sEst:="~La función no se pudo evaluar. Revisar f(x) y el arranque."; END;
+            IF nMal==2 THEN sEst:="~Los valores se alejan: probar otro arranque."; END;
+            IF nMal==3 THEN sEst:="~La derivada dio 0: probar otro arranque."; END;
+            lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXx,10),sEst,""},lLin);
+            UiVer("Newton-Raphson",lLin);
+          END;
+        END;
+      END;
+    END;
+    IF nOpc==3 THEN
+      lDat:=UiPedir("Bisección",{"f(x) = ","a = ","b = ","Tolerancia = "},
+          {"Se busca f(x) = 0. También acepta una ecuación con =","Extremo izquierdo",
+          "Extremo derecho. f debe cambiar de signo entre a y b","Ancho final del intervalo"},
+          {"x^3-2*x-5","2","3","0.000001"},1);
+      IF SIZE(lDat)>0 THEN
+        nMal:=0;
+        lNum:={};
+        FOR nIdx FROM 2 TO 4 DO
+          lNum:=CONCAT(lNum,{ExValor(lDat(nIdx))});
+          nMal:=nMal+gBad;
+        END;
+        IF nMal>0 THEN
+          UiAviso("Revisar los valores numéricos.");
+        ELSE
+          IF ExPrep(lDat(1),{"x"},{"X"}) THEN
+            UiCalc("Bisección");
+            nXa:=lNum(1);
+            nXb:=lNum(2);
+            nTol:=MAX(ABS(lNum(3)),0.000000000001);
+            gBad:=0;
+            nFa:=ExF(nXa);
+            nFb:=ExF(nXb);
+            IF gBad THEN
+              gBad:=0;
+              UiAviso("La función no se pudo evaluar en a o en b.");
+            ELSE
+              IF nFa*nFb>0 THEN
+                UiAviso("f(a) y f(b) tienen el mismo signo: elegir otro intervalo.  f(a) = "+UiNum(nFa,
+                    4)+"   f(b) = "+UiNum(nFb,4));
+              ELSE
+                nIt:=0;
+                nMal:=0;
+                lLin:={"#Iteraciones   [a ; b]   m = punto medio"};
+                nXm:=(nXa+nXb)/2;
+                WHILE ABS(nXb-nXa)>nTol AND nIt<200 AND nMal==0 DO
+                  nIt:=nIt+1;
+                  nXm:=(nXa+nXb)/2;
+                  gBad:=0;
+                  nFm:=ExF(nXm);
+                  IF gBad THEN
+                    nMal:=1;
+                  ELSE
+                    IF nIt<=40 THEN
+                      lLin:=CONCAT(lLin,{" "+STRING(nIt)+") ["+UiNum(nXa,
+                          6)+" ; "+UiNum(nXb,6)+"] m="+UiNum(nXm,6)});
+                    END;
+                    IF nFa*nFm<=0 THEN
+                      nXb:=nXm;
+                      nFb:=nFm;
+                    ELSE
+                      nXa:=nXm;
+                      nFa:=nFm;
+                    END;
+                  END;
+                END;
+                gBad:=0;
+                nXm:=(nXa+nXb)/2;
+                sEst:="~"+STRING(nIt)+" iteraciones.   Ancho final del intervalo: "+UiNum(ABS(nXb-nXa),3);
+                IF nMal THEN sEst:="~La función no se pudo evaluar dentro del intervalo."; END;
+                lLin:=CONCAT({"#Resultado","!x = "+UiNum(nXm,10),sEst,""},lLin);
+                UiVer("Bisección",lLin);
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Interpolacion ----------
+
+MdInterp()
+BEGIN
+  LOCAL nOpc,nFin,lDat,nRes,lLin,nTa,nTb,nFa;
+  LOCAL nFb,sNota,lTab;
+  nFin:=0;
+  REPEAT
+    nOpc:=UiMenu("Interpolación",{"Lineal  (entre dos puntos)","Doble  (tabla de dos entradas)"},{"1D","2D"});
+    IF nOpc==0 THEN nFin:=1; END;
+    IF nOpc==1 THEN
+      lDat:=UiPedir("Interpolación lineal",{"x1 = ","y1 = ","x2 = ","y2 = ",
+          "x = "},{"Primer punto de la tabla","Valor de la tabla en x1","Segundo punto de la tabla",
+          "Valor de la tabla en x2","Punto donde se quiere el valor"},{0,0,1,1,0.5},
+          0);
+      IF SIZE(lDat)>0 THEN
+        IF lDat(3)==lDat(1) THEN
+          UiAviso("x1 y x2 deben ser distintos.");
+        ELSE
+          nRes:=lDat(2)+(lDat(4)-lDat(2))*(lDat(5)-lDat(1))/(lDat(3)-lDat(1));
+          sNota:="~x está entre x1 y x2: interpolación.";
+          IF (lDat(5)-lDat(1))*(lDat(5)-lDat(3))>0 THEN sNota:="~Atención: x está fuera del intervalo (extrapolación)."; END;
+          lLin:={"#Puntos de la tabla"," ("+UiNum(lDat(1),8)+" ; "+UiNum(lDat(2),
+              8)+")"," ("+UiNum(lDat(3),8)+" ; "+UiNum(lDat(4),8)+")","#Valor en x = "+UiNum(lDat(5),
+              8),"!y = "+UiNum(nRes,10),sNota,"#Pendiente"," "+UiNum((lDat(4)-lDat(2))/(lDat(3)-lDat(1)),
+              8)};
+          UiVer("Interpolación lineal",lLin);
+        END;
+      END;
+    END;
+    IF nOpc==2 THEN
+      lDat:=UiPedir("Interpolación doble: entradas",{"x1 = ","x2 = ","y1 = ",
+          "y2 = ","x buscado = ","y buscado = "},{"Primera entrada: valor de la tabla por debajo",
+          "Primera entrada: valor de la tabla por arriba","Segunda entrada: valor de la tabla por debajo",
+          "Segunda entrada: valor de la tabla por arriba","Primera entrada del punto que se busca",
+          "Segunda entrada del punto que se busca"},{0,1,0,1,0.5,0.5},0);
+      IF SIZE(lDat)>0 THEN
+        IF lDat(2)==lDat(1) OR lDat(4)==lDat(3) THEN
+          UiAviso("x1 y x2 deben ser distintos, y también y1 e y2.");
+        ELSE
+          lTab:=UiPedir("Valores de la tabla",{"f(x1,y1) = ","f(x1,y2) = ",
+              "f(x2,y1) = ","f(x2,y2) = "},{"Valor de la tabla en x1 = "+UiNum(lDat(1),
+              6)+" , y1 = "+UiNum(lDat(3),6),"Valor de la tabla en x1 = "+UiNum(lDat(1),
+              6)+" , y2 = "+UiNum(lDat(4),6),"Valor de la tabla en x2 = "+UiNum(lDat(2),
+              6)+" , y1 = "+UiNum(lDat(3),6),"Valor de la tabla en x2 = "+UiNum(lDat(2),
+              6)+" , y2 = "+UiNum(lDat(4),6)},{0,0,0,0},0);
+          IF SIZE(lTab)>0 THEN
+            nTa:=(lDat(5)-lDat(1))/(lDat(2)-lDat(1));
+            nTb:=(lDat(6)-lDat(3))/(lDat(4)-lDat(3));
+            nFa:=lTab(1)+(lTab(3)-lTab(1))*nTa;
+            nFb:=lTab(2)+(lTab(4)-lTab(2))*nTa;
+            nRes:=nFa+(nFb-nFa)*nTb;
+            sNota:="~Los dos valores buscados están dentro de la tabla.";
+            IF nTa<0 OR nTa>1 OR nTb<0 OR nTb>1 THEN sNota:="~Atención: el punto está fuera de la tabla (extrapolación)."; END;
+            lLin:={"#Valor en x = "+UiNum(lDat(5),8)+" ,  y = "+UiNum(lDat(6),
+                8),"!f = "+UiNum(nRes,10),sNota,"#Pasos intermedios"," En y1, interpolando en x:  "+UiNum(nFa,
+                9)," En y2, interpolando en x:  "+UiNum(nFb,9)};
+            UiVer("Interpolación doble",lLin);
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Planilla y estadistica ----------
+
+MdDatos()
+BEGIN
+  LOCAL nOpc;
+  nOpc:=UiMenu("Estadística",{"App Estadística de 1 variable","App Estadística de 2 variables (regresión)",
+      "App Inferencia (intervalos y tests)","Distribuciones de probabilidad"},
+      {"1Var","2Var","IC","P(x)"});
+  IF nOpc==1 THEN MdAbreApp({"Statistics 1Var","Statistics_1Var","1Var estadística",
+      "Estadística 1Var"},2); END;
+  IF nOpc==2 THEN MdAbreApp({"Statistics 2Var","Statistics_2Var","2Var estadística",
+      "Estadística 2Var"},2); END;
+  IF nOpc==3 THEN MdAbreApp({"Inference","Inferencia"},0); END;
+  IF nOpc==4 THEN MdProba(); END;
+END;
+
+// ---------- Unidades ----------
+
+UnCats()
+BEGIN
+  RETURN {"Longitud","Área","Volumen","Masa","Tiempo","Temperatura","Presión",
+      "Energía","Potencia","Fuerza","Viscosidad dinámica","Viscosidad cinemática, difusividad",
+      "Densidad","Velocidad","Caudal volumétrico","Calor específico","Conductividad térmica",
+      "Coef. de transferencia de calor","Energía molar","Cantidad de sustancia",
+      "Actividad radiactiva","Dosis absorbida","Dosis equivalente","Exposición",
+      "Ángulo"};
+END;
+
+// Devuelve {nombres, factores}. El factor pasa 1 unidad a la unidad base.
+UnDatos(nCat)
+BEGIN
+  IF nCat==1 THEN RETURN {{"m","cm","mm","km","micrómetro","nm","angstrom",
+      "pulgada (in)","pie (ft)","yarda","milla"},{1,0.01,0.001,1000,0.000001,
+      0.000000001,0.0000000001,0.0254,0.3048,0.9144,1609.344}}; END;
+  IF nCat==2 THEN RETURN {{"m²","cm²","mm²","km²","hectárea","in²","ft²",
+      "barn"},{1,0.0001,0.000001,1000000,10000,0.00064516,0.09290304,10^(-28)}}; END;
+  IF nCat==3 THEN RETURN {{"m³","litro","mL (cm³)","ft³","in³","galón (US)",
+      "barril de petróleo"},{1,0.001,0.000001,0.028316846592,0.000016387064,
+      0.003785411784,0.158987294928}}; END;
+  IF nCat==4 THEN RETURN {{"kg","g","mg","tonelada","libra (lb)","onza (oz)",
+      "u (uma)"},{1,0.001,0.000001,1000,0.45359237,0.028349523125,1.66053906892*10^(-27)}}; END;
+  IF nCat==5 THEN RETURN {{"s","min","h","día","año (365,25 d)","ms","microsegundo"},
+      {1,60,3600,86400,31557600,0.001,0.000001}}; END;
+  IF nCat==7 THEN RETURN {{"Pa","kPa","MPa","bar","atm","mmHg (torr)",
+      "psi","kgf/cm²","m de agua","in de Hg"},{1,1000,1000000,100000,101325,
+      133.322368421,6894.75729317,98066.5,9806.65,3386.38815789}}; END;
+  IF nCat==8 THEN RETURN {{"J","kJ","cal (termoquímica)","kcal","BTU",
+      "kWh","eV","MeV","erg","L.atm","ft.lbf"},{1,1000,4.184,4184,1055.05585262,
+      3600000,1.602176634*10^(-19),1.602176634*10^(-13),0.0000001,101.325,1.3558179483314}}; END;
+  IF nCat==9 THEN RETURN {{"W","kW","MW","hp","CV","BTU/h","kcal/h"},{1,
+      1000,1000000,745.699871582,735.49875,0.29307107017,1.16222222222}}; END;
+  IF nCat==10 THEN RETURN {{"N","kN","kgf","lbf","dina"},{1,1000,9.80665,4.4482216152605,0.00001}}; END;
+  IF nCat==11 THEN RETURN {{"Pa.s","cP (mPa.s)","poise","lb/(ft.s)","lb/(ft.h)"},
+      {1,0.001,0.1,1.48816394357,0.000413378873214}}; END;
+  IF nCat==12 THEN RETURN {{"m²/s","cm²/s (stokes)","cSt (mm²/s)","ft²/s",
+      "ft²/h"},{1,0.0001,0.000001,0.09290304,0.0000258064}}; END;
+  IF nCat==13 THEN RETURN {{"kg/m³","g/cm³","kg/L","lb/ft³","lb/galón (US)"},
+      {1,1000,1000,16.018463374,119.826427317}}; END;
+  IF nCat==14 THEN RETURN {{"m/s","km/h","ft/s","milla/h","nudo"},{1,0.277777777778,
+      0.3048,0.44704,0.514444444444}}; END;
+  IF nCat==15 THEN RETURN {{"m³/s","m³/h","L/s","L/min","galón/min (US)",
+      "ft³/s","ft³/min"},{1,0.000277777777778,0.001,0.0000166666666667,0.0000630901964,
+      0.028316846592,0.0004719474432}}; END;
+  IF nCat==16 THEN RETURN {{"J/(kg.K)","kJ/(kg.K)","cal/(g.°C)","kcal/(kg.°C)",
+      "BTU/(lb.°F)"},{1,1000,4184,4184,4186.8}}; END;
+  IF nCat==17 THEN RETURN {{"W/(m.K)","kcal/(h.m.°C)","cal/(s.cm.°C)",
+      "BTU/(h.ft.°F)"},{1,1.16222222222,418.4,1.73073466637}}; END;
+  IF nCat==18 THEN RETURN {{"W/(m².K)","kcal/(h.m².°C)","BTU/(h.ft².°F)"},
+      {1,1.16222222222,5.67826334111}}; END;
+  IF nCat==19 THEN RETURN {{"J/mol","kJ/mol","cal/mol","kcal/mol","BTU/lbmol",
+      "eV por partícula"},{1,1000,4.184,4184,2.326,96485.3321233}}; END;
+  IF nCat==20 THEN RETURN {{"mol","kmol","mmol","lbmol"},{1,1000,0.001,453.59237}}; END;
+  IF nCat==21 THEN RETURN {{"Bq","kBq","MBq","GBq","Ci","mCi","microCi"},
+      {1,1000,1000000,1000000000,37000000000,37000000,37000}}; END;
+  IF nCat==22 THEN RETURN {{"Gy","mGy","rad"},{1,0.001,0.01}}; END;
+  IF nCat==23 THEN RETURN {{"Sv","mSv","microSv","rem","mrem"},{1,0.001,0.000001,0.01,0.00001}}; END;
+  IF nCat==24 THEN RETURN {{"C/kg","roentgen (R)","mR"},{1,0.000258,0.000000258}}; END;
+  IF nCat==25 THEN RETURN {{"radián","grado","gradián","vuelta"},{1,0.0174532925199433,
+      0.015707963267949,6.28318530717959}}; END;
+  RETURN {{"K","°C","°F","°R"},{1,1,1,1}};
+END;
+
+// Temperatura: pasa de la unidad nUni a kelvin.
+UnAKelvin(nVal,nUni)
+BEGIN
+  IF nUni==2 THEN RETURN nVal+273.15; END;
+  IF nUni==3 THEN RETURN (nVal+459.67)*5/9; END;
+  IF nUni==4 THEN RETURN nVal*5/9; END;
+  RETURN nVal;
+END;
+
+UnDeKelvin(nVal,nUni)
+BEGIN
+  IF nUni==2 THEN RETURN nVal-273.15; END;
+  IF nUni==3 THEN RETURN nVal*9/5-459.67; END;
+  IF nUni==4 THEN RETURN nVal*9/5; END;
+  RETURN nVal;
+END;
+
+MdUnidades()
+BEGIN
+  LOCAL nCat,nFin,nFin2,lTab,lNom,lFac,nUni,lDat;
+  LOCAL nBase,lLin,nIdx,nVal,lCat,nUlt;
+  nFin:=0;
+  lCat:=UnCats();
+  nUlt:=1;
+  REPEAT
+    nCat:=UiMenu("Unidades",lCat,{});
+    IF nCat==0 THEN
+      nFin:=1;
+    ELSE
+      lTab:=UnDatos(nCat);
+      lNom:=lTab(1);
+      lFac:=lTab(2);
+      nFin2:=0;
+      REPEAT
+        nUni:=UiMenu(lCat(nCat)+": unidad de origen",lNom,{});
+        IF nUni==0 THEN
+          nFin2:=1;
+        ELSE
+          lDat:=UiPedir(lCat(nCat),{"Valor en "+lNom(nUni)+" = "},{"Cantidad a convertir"},{nUlt},0);
+          IF SIZE(lDat)>0 THEN
+            nUlt:=lDat(1);
+            lLin:={"#"+lCat(nCat),"!"+UiNum(nUlt,10)+"  "+lNom(nUni),"#Equivale a"};
+            IF nCat==6 THEN
+              nBase:=UnAKelvin(nUlt,nUni);
+            ELSE
+              nBase:=nUlt*lFac(nUni);
+            END;
+            FOR nIdx FROM 1 TO SIZE(lNom) DO
+              IF nIdx<>nUni THEN
+                IF nCat==6 THEN
+                  nVal:=UnDeKelvin(nBase,nIdx);
+                ELSE
+                  nVal:=nBase/lFac(nIdx);
+                END;
+                lLin:=CONCAT(lLin,{" "+UiNum(nVal,9)+"   "+lNom(nIdx)});
+              END;
+            END;
+            UiVer("Unidades",lLin);
+          END;
+        END;
+      UNTIL nFin2;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Constantes ----------
+
+MdConstantes()
+BEGIN
+  LOCAL lLin;
+  lLin:={"#Constante de los gases  R"," 8.314462618  J/(mol.K)"," 0.082057366  L.atm/(mol.K)",
+      " 1.98720426  cal/(mol.K)"," 62.363598  L.mmHg/(mol.K)"," 83.14462618  bar.cm³/(mol.K)",
+      " 10.731577  psi.ft³/(lbmol.°R)",
+  "#Número de Avogadro"," 6.02214076E23  1/mol",
+  "#Constante de Boltzmann"," 1.380649E-23  J/K"," 8.617333E-5  eV/K",
+  "#Constante de Faraday"," 96485.33212  C/mol",
+  "#Carga elemental"," 1.602176634E-19  C",
+  "#Constante de Planck"," 6.62607015E-34  J.s",
+  "#Velocidad de la luz"," 299792458  m/s",
+  "#Stefan-Boltzmann"," 5.670374419E-8  W/(m².K^4)",
+  "#Gravedad estándar"," 9.80665  m/s²",
+  "#Atmósfera estándar"," 101325  Pa  =  1.01325  bar"," 760  mmHg  =  14.6959  psi",
+  "#Volumen molar de gas ideal (0 °C, 1 atm)"," 22.41396954  L/mol",
+  "#Unidad de masa atómica  u"," 1.66053907E-27  kg"," 931.494103  MeV",
+  "#Masa del neutrón"," 1.008664916  u"," 939.565422  MeV",
+  "#Masa del protón"," 1.007276467  u"," 938.272089  MeV",
+  "#Masa del electrón"," 0.000548579909  u"," 0.510998951  MeV",
+  "#Masa del átomo de hidrógeno 1"," 1.007825032  u",
+  "#Electronvoltio"," 1 eV  =  1.602176634E-19  J",
+  "#Curie"," 1 Ci  =  3.7E10  Bq",
+  "#Barn"," 1 b  =  1E-24  cm²  =  1E-28  m²",
+  "#Energía por fisión de U-235 (aprox.)"," 200  MeV  =  3.204E-11  J",
+  "#Neutrón térmico (20 °C)"," 0.0253  eV    2200  m/s",
+  "#Agua líquida a 20 °C (aprox.)"," densidad  998.2  kg/m³"," viscosidad  1.002  cP",
+      " calor específico  4182  J/(kg.K)"};
+  UiVer("Constantes",lLin);
+END;
+
+// ---------- Masa molar ----------
+
+QmSimbolos()
+BEGIN
+  RETURN {"H","He","Li","Be","B","C","N","O","F","Ne","Na","Mg","Al","Si",
+      "P","S","Cl","Ar","K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu",
+      "Zn","Ga","Ge","As","Se","Br","Kr","Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru",
+      "Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe","Cs","Ba","La","Ce","Pr",
+      "Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu","Hf","Ta",
+      "W","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn","Fr","Ra",
+      "Ac","Th","Pa","U","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No","Lr",
+      "D","T"};
+END;
+
+QmMasas()
+BEGIN
+  RETURN {1.008,4.0026,6.94,9.0122,10.81,12.011,14.007,15.999,18.998,20.180,
+      22.990,24.305,26.982,28.085,30.974,32.06,35.45,39.948,39.098,40.078,44.956,
+      47.867,50.942,51.996,54.938,55.845,58.933,58.693,63.546,65.38,69.723,72.630,
+      74.922,78.971,79.904,83.798,85.468,87.62,88.906,91.224,92.906,95.95,98,
+      101.07,102.906,106.42,107.868,112.414,114.818,118.710,121.760,127.60,126.904,
+      131.293,132.905,137.327,138.905,140.116,140.908,144.242,145,150.36,151.964,
+      157.25,158.925,162.500,164.930,167.259,168.934,173.045,174.967,178.486,
+      180.948,183.84,186.207,190.23,192.217,195.084,196.967,200.592,204.38,207.2,
+      208.980,209,210,222,223,226,227,232.038,231.036,238.029,237,244,243,247,
+      247,251,252,257,258,259,262,2.0141,3.0160};
+END;
+
+// Analiza una formula quimica. Devuelve {indices de elementos, cantidades}.
+// Si hay un error deja gBad en 1 y el motivo en gErr.
+QmParse(sFor)
+BEGIN
+  LOCAL lPartes,nPar,sPar,lCod,nLen,nPos,nCod,nFac;
+  LOCAL sNum,lPila,sLow,sSim,nIdx,lSim,lEle,lCnt;
+  LOCAL nMul,nEle,nYa,nIni,nNum,nTope;
+  gBad:=0;
+  gErr:="";
+  lSim:=QmSimbolos();
+  lEle:={};
+  lCnt:={};
+  // los hidratos se separan con * (por ejemplo CuSO4*5H2O)
+  lPartes:=UiPartir(sFor,"*");
+  FOR nPar FROM 1 TO SIZE(lPartes) DO
+    sPar:=lPartes(nPar);
+    lCod:={};
+    IF sPar<>"" THEN lCod:=ASC(sPar); END;
+    nLen:=SIZE(lCod);
+    // coeficiente inicial de la parte (el 5 de 5H2O)
+    nIni:=1;
+    nFac:=1;
+    sNum:="";
+    nYa:=0;
+    WHILE nIni<=nLen AND nYa==0 DO
+      nCod:=lCod(nIni);
+      IF nCod>=48 AND nCod<=57 THEN
+        sNum:=sNum+CHAR(nCod);
+        nIni:=nIni+1;
+      ELSE
+        IF nCod==32 THEN
+          nIni:=nIni+1;
+        ELSE
+          nYa:=1;
+        END;
+      END;
+    END;
+    IF sNum<>"" THEN nFac:=EXPR(sNum); END;
+    // se recorre de derecha a izquierda
+    lPila:={nFac};
+    sNum:="";
+    sLow:="";
+    nPos:=nLen;
+    WHILE nPos>=nIni DO
+      nCod:=lCod(nPos);
+      nTope:=lPila(SIZE(lPila));
+      nNum:=1;
+      IF sNum<>"" THEN nNum:=EXPR(sNum); END;
+      IF nCod>=48 AND nCod<=57 THEN
+        sNum:=CHAR(nCod)+sNum;
+      END;
+      IF nCod==41 OR nCod==93 THEN
+        lPila:=CONCAT(lPila,{nTope*nNum});
+        sNum:="";
+      END;
+      IF nCod==40 OR nCod==91 THEN
+        IF SIZE(lPila)>1 THEN
+          lPila:=UiSinUlt(lPila);
+        ELSE
+          gBad:=1;
+          gErr:="paréntesis sin cerrar";
+        END;
+        sNum:="";
+      END;
+      IF nCod>=97 AND nCod<=122 THEN
+        sLow:=CHAR(nCod)+sLow;
+      END;
+      IF nCod>=65 AND nCod<=90 THEN
+        sSim:=CHAR(nCod)+sLow;
+        nEle:=UiPos(lSim,sSim);
+        IF nEle==0 THEN
+          gBad:=1;
+          gErr:="no conozco el elemento "+sSim;
+        ELSE
+          nMul:=nNum*nTope;
+          nIdx:=UiPos(lEle,nEle);
+          IF nIdx==0 THEN
+            lEle:=CONCAT({nEle},lEle);
+            lCnt:=CONCAT({nMul},lCnt);
+          ELSE
+            lCnt(nIdx):=lCnt(nIdx)+nMul;
+          END;
+        END;
+        sNum:="";
+        sLow:="";
+      END;
+      nPos:=nPos-1;
+    END;
+    IF SIZE(lPila)>1 THEN
+      gBad:=1;
+      gErr:="paréntesis sin abrir";
+    END;
+    IF sLow<>"" THEN
+      gBad:=1;
+      gErr:="los símbolos empiezan con mayúscula";
+    END;
+  END;
+  IF SIZE(lEle)==0 AND gBad==0 THEN
+    gBad:=1;
+    gErr:="no encontré elementos";
+  END;
+  RETURN {lEle,lCnt};
+END;
+
+MdMasaMolar()
+BEGIN
+  LOCAL lDat,lRes,lEle,lCnt,lSim,lMas,nTot,nIdx;
+  LOCAL lLin,nFin,sFor,nApo,lGr,nMol,nBot;
+  nFin:=0;
+  sFor:="Ca(OH)2";
+  lSim:=QmSimbolos();
+  lMas:=QmMasas();
+  REPEAT
+    lDat:=UiPedir("Masa molar",{"Fórmula: "},{"Respetar mayúsculas: Ca(OH)2, H2SO4, CuSO4*5H2O, D2O"},
+        {sFor},1);
+    IF SIZE(lDat)==0 THEN
+      nFin:=1;
+    ELSE
+      sFor:=lDat(1);
+      lRes:=QmParse(sFor);
+      IF gBad THEN
+        UiAviso("Fórmula no válida: "+gErr);
+        gBad:=0;
+      ELSE
+        lEle:=lRes(1);
+        lCnt:=lRes(2);
+        nTot:=0;
+        FOR nIdx FROM 1 TO SIZE(lEle) DO
+          nTot:=nTot+lCnt(nIdx)*lMas(lEle(nIdx));
+        END;
+        lLin:={"#Masa molar de "+sFor,"!"+UiNum(nTot,8)+"  g/mol","#Composición:  elemento x átomos,  gramos por mol,  % en masa"};
+        FOR nIdx FROM 1 TO SIZE(lEle) DO
+          nApo:=lCnt(nIdx)*lMas(lEle(nIdx));
+          lLin:=CONCAT(lLin,{" "+lSim(lEle(nIdx))+" x "+UiNum(lCnt(nIdx),
+              6)+"     "+UiNum(nApo,7)+" g     "+UiNum(100*nApo/nTot,4)+" %"});
+        END;
+        nBot:=1;
+        WHILE nBot==1 DO
+          nBot:=UiTexto("Masa molar",lLin,{"g y mol","",""});
+          IF nBot==1 THEN
+            lGr:=UiPedir("Gramos y moles",{"Masa en gramos = ","Moles = "},
+                {"Completar uno y dejar el otro en 0","Completar uno y dejar el otro en 0"},
+                {0,0},0);
+            IF SIZE(lGr)>0 THEN
+              IF lGr(1)<>0 THEN
+                nMol:=lGr(1)/nTot;
+                UiVer("Gramos y moles",{"#"+sFor+"   "+UiNum(nTot,8)+" g/mol",
+                    "#Masa"," "+UiNum(lGr(1),9)+"  g","#Moles","!"+UiNum(nMol,9)+"  mol","#Moléculas (o unidades fórmula)",
+                    " "+UiNum(nMol*6.02214076*10^23,7)});
+              ELSE
+                UiVer("Gramos y moles",{"#"+sFor+"   "+UiNum(nTot,8)+" g/mol",
+                    "#Moles"," "+UiNum(lGr(2),9)+"  mol","#Masa","!"+UiNum(lGr(2)*nTot,9)+"  g",
+                    "#Moléculas (o unidades fórmula)"," "+UiNum(lGr(2)*6.02214076*10^23,7)});
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Biblioteca de formulas ----------
+// Cada formula es un texto:  Nombre|ecuacion|var:descripcion;var:descripcion
+// Para agregar formulas fijas alcanza con sumar renglones aca.
+// Las propias se cargan desde la calculadora (Mis formulas).
+
+FmCats()
+BEGIN
+  RETURN {"Mis fórmulas","Termodinámica y gases","Cinética y reactores",
+      "Mecánica de fluidos","Transferencia de calor","Transferencia de masa y separación",
+      "Química y soluciones","Nuclear","Números adimensionales","Control de procesos"};
+END;
+
+FmDatos(nCat)
+BEGIN
+  IF nCat==2 THEN RETURN {
+"Gas ideal|p*v=n*r*t|p:Presión;v:Volumen;n:Moles;r:Constante R (en las mismas unidades);t:Temperatura absoluta [K]",
+"Densidad de un gas ideal|rho=p*mm/(r*t)|rho:Densidad;p:Presión;mm:Masa molar;r:Constante R;t:Temperatura absoluta [K]",
+"Van der Waals|(p+a*n^2/v^2)*(v-n*b)=n*r*t|p:Presión;a:Constante a;n:Moles;v:Volumen;b:Constante b;r:Constante R;t:Temperatura absoluta [K]",
+"Factor de compresibilidad|z=p*v/(n*r*t)|z:Factor de compresibilidad;p:Presión;v:Volumen;n:Moles;r:Constante R;t:Temperatura absoluta [K]",
+"Ley combinada de los gases|p1*v1/t1=p2*v2/t2|p1:Presión inicial;v1:Volumen inicial;t1:Temperatura inicial [K];p2:Presión final;v2:Volumen final;t2:Temperatura final [K]",
+"Calor sensible|q=m*cp*(t2-t1)|q:Calor [J];m:Masa [kg];cp:Calor específico [J/(kg.K)];t2:Temperatura final;t1:Temperatura inicial",
+"Calor latente|q=m*lv|q:Calor [J];m:Masa [kg];lv:Calor latente [J/kg]",
+"Trabajo isotérmico de un gas ideal|w=n*r*t*ln(v2/v1)|w:Trabajo hecho por el gas [J];n:Moles;r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];v2:Volumen final;v1:Volumen inicial",
+"Adiabático: presión y volumen|p1*v1^k=p2*v2^k|p1:Presión inicial;v1:Volumen inicial;k:Exponente adiabático cp/cv;p2:Presión final;v2:Volumen final",
+"Adiabático: temperatura y presión|t2=t1*(p2/p1)^((k-1)/k)|t2:Temperatura final [K];t1:Temperatura inicial [K];p2:Presión final;p1:Presión inicial;k:Exponente adiabático cp/cv",
+"Eficiencia de Carnot|eta=1-tf/tc|eta:Eficiencia (de 0 a 1);tf:Temperatura de la fuente fría [K];tc:Temperatura de la fuente caliente [K]",
+"Clausius-Clapeyron|ln(p2/p1)=-dh/r*(1/t2-1/t1)|p2:Presión de vapor a t2;p1:Presión de vapor a t1;dh:Entalpía de vaporización [J/mol];r:Constante R [8.314 J/(mol.K)];t2:Temperatura 2 [K];t1:Temperatura 1 [K]",
+"Antoine (logaritmo en base 10)|log(p)=a-b/(t+c)|p:Presión de vapor;a:Constante A;b:Constante B;t:Temperatura;c:Constante C",
+"Energía libre de Gibbs|dg=dh-t*ds|dg:Cambio de energía libre;dh:Cambio de entalpía;t:Temperatura [K];ds:Cambio de entropía",
+"Gibbs y constante de equilibrio|dg=-r*t*ln(k)|dg:Energía libre estándar [J/mol];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];k:Constante de equilibrio",
+"Cambio de entropía de un gas ideal|ds=n*cp*ln(t2/t1)-n*r*ln(p2/p1)|ds:Cambio de entropía [J/K];n:Moles;cp:Calor específico molar [J/(mol.K)];t2:Temperatura final [K];t1:Temperatura inicial [K];r:Constante R;p2:Presión final;p1:Presión inicial",
+"Primera ley (sistema cerrado)|du=q-w|du:Cambio de energía interna;q:Calor que entra al sistema;w:Trabajo hecho por el sistema",
+"Entalpía|h=u+p*v|h:Entalpía;u:Energía interna;p:Presión;v:Volumen",
+"Ley de Raoult|p=x*psat|p:Presión parcial;x:Fracción molar en el líquido;psat:Presión de vapor del componente puro",
+"Ley de Henry|p=kh*x|p:Presión parcial;kh:Constante de Henry;x:Fracción molar en el líquido"}; END;
+  IF nCat==3 THEN RETURN {
+"Arrhenius|k=a*exp(-ea/(r*t))|k:Constante de velocidad;a:Factor preexponencial;ea:Energía de activación [J/mol];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K]",
+"Arrhenius con dos temperaturas|ln(k2/k1)=ea/r*(1/t1-1/t2)|k2:Constante de velocidad a t2;k1:Constante de velocidad a t1;ea:Energía de activación [J/mol];r:Constante R [8.314 J/(mol.K)];t1:Temperatura 1 [K];t2:Temperatura 2 [K]",
+"Orden 0: concentración|c=c0-k*t|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Orden 1: concentración|c=c0*exp(-k*t)|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Orden 2: concentración|1/c=1/c0+k*t|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Vida media (orden 1)|th=ln(2)/k|th:Vida media;k:Constante de velocidad",
+"Conversión|x=(c0-c)/c0|x:Conversión (de 0 a 1);c0:Concentración inicial;c:Concentración final",
+"Reactor batch, orden 1|t=-ln(1-x)/k|t:Tiempo de reacción;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"CSTR, orden 1|tau=x/(k*(1-x))|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"PFR, orden 1|tau=-ln(1-x)/k|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"CSTR, orden 2|tau=x/(k*c0*(1-x)^2)|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad;c0:Concentración de entrada",
+"PFR, orden 2|tau=x/(k*c0*(1-x))|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad;c0:Concentración de entrada",
+"Volumen de un CSTR|v=fa0*x/ra|v:Volumen del reactor;fa0:Caudal molar de A a la entrada;x:Conversión (de 0 a 1);ra:Velocidad de reacción a la salida (positiva)",
+"Tiempo espacial|tau=v/q|tau:Tiempo espacial;v:Volumen del reactor;q:Caudal volumétrico",
+"Número de Damköhler (orden 1)|da=k*tau|da:Número de Damköhler;k:Constante de velocidad;tau:Tiempo espacial",
+"Van't Hoff|ln(k2/k1)=-dh/r*(1/t2-1/t1)|k2:Constante de equilibrio a t2;k1:Constante de equilibrio a t1;dh:Entalpía de reacción [J/mol];r:Constante R [8.314 J/(mol.K)];t2:Temperatura 2 [K];t1:Temperatura 1 [K]"}; END;
+  IF nCat==4 THEN RETURN {
+"Número de Reynolds|re=rho*v*d/mu|re:Número de Reynolds;rho:Densidad [kg/m³];v:Velocidad [m/s];d:Diámetro [m];mu:Viscosidad dinámica [Pa.s]",
+"Continuidad|a1*v1=a2*v2|a1:Área de la sección 1;v1:Velocidad en la sección 1;a2:Área de la sección 2;v2:Velocidad en la sección 2",
+"Caudal en una tubería|q=v*pi*d^2/4|q:Caudal [m³/s];v:Velocidad media [m/s];d:Diámetro interno [m]",
+"Bernoulli con pérdidas|p1/(rho*g)+v1^2/(2*g)+z1=p2/(rho*g)+v2^2/(2*g)+z2+hf|p1:Presión en 1 [Pa];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];v1:Velocidad en 1 [m/s];z1:Altura en 1 [m];p2:Presión en 2 [Pa];v2:Velocidad en 2 [m/s];z2:Altura en 2 [m];hf:Pérdida de carga [m]",
+"Darcy-Weisbach|hf=f*(l/d)*v^2/(2*g)|hf:Pérdida de carga [m];f:Factor de fricción de Darcy;l:Longitud [m];d:Diámetro [m];v:Velocidad [m/s];g:Gravedad [9.80665 m/s²]",
+"Factor de fricción laminar|f=64/re|f:Factor de fricción de Darcy;re:Número de Reynolds (menor que 2100)",
+"Colebrook|1/sqrt(f)=-2*log(rr/3.7+2.51/(re*sqrt(f)))|f:Factor de fricción de Darcy;rr:Rugosidad relativa (rugosidad / diámetro);re:Número de Reynolds",
+"Swamee-Jain|f=0.25/(log(rr/3.7+5.74/re^0.9))^2|f:Factor de fricción de Darcy;rr:Rugosidad relativa (rugosidad / diámetro);re:Número de Reynolds",
+"Potencia de una bomba|pot=rho*g*q*h/eta|pot:Potencia [W];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];q:Caudal [m³/s];h:Altura de la bomba [m];eta:Eficiencia (de 0 a 1)",
+"Hagen-Poiseuille|dp=32*mu*l*v/d^2|dp:Caída de presión [Pa];mu:Viscosidad dinámica [Pa.s];l:Longitud [m];v:Velocidad media [m/s];d:Diámetro [m]",
+"Velocidad terminal (Stokes)|v=g*d^2*(rhop-rho)/(18*mu)|v:Velocidad terminal [m/s];g:Gravedad [9.80665 m/s²];d:Diámetro de la partícula [m];rhop:Densidad de la partícula [kg/m³];rho:Densidad del fluido [kg/m³];mu:Viscosidad dinámica [Pa.s]",
+"Presión hidrostática|p=p0+rho*g*h|p:Presión a la profundidad h [Pa];p0:Presión en la superficie [Pa];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];h:Profundidad [m]",
+"Pérdida en accesorios|hf=k*v^2/(2*g)|hf:Pérdida de carga [m];k:Coeficiente del accesorio;v:Velocidad [m/s];g:Gravedad [9.80665 m/s²]",
+"Torricelli|v=sqrt(2*g*h)|v:Velocidad de salida [m/s];g:Gravedad [9.80665 m/s²];h:Altura de líquido [m]",
+"Placa orificio|q=cd*a*sqrt(2*dp/(rho*(1-beta^4)))|q:Caudal [m³/s];cd:Coeficiente de descarga;a:Área del orificio [m²];dp:Caída de presión [Pa];rho:Densidad [kg/m³];beta:Relación de diámetros (orificio / tubería)"}; END;
+  IF nCat==5 THEN RETURN {
+"Conducción en pared plana|q=k*a*(t1-t2)/l|q:Calor por unidad de tiempo [W];k:Conductividad térmica [W/(m.K)];a:Área [m²];t1:Temperatura de la cara caliente;t2:Temperatura de la cara fría;l:Espesor [m]",
+"Conducción en pared cilíndrica|q=2*pi*k*l*(t1-t2)/ln(r2/r1)|q:Calor por unidad de tiempo [W];k:Conductividad térmica [W/(m.K)];l:Longitud del cilindro [m];t1:Temperatura interior;t2:Temperatura exterior;r2:Radio exterior;r1:Radio interior",
+"Convección (ley de Newton)|q=h*a*(ts-tf)|q:Calor por unidad de tiempo [W];h:Coeficiente de convección [W/(m².K)];a:Área [m²];ts:Temperatura de la superficie;tf:Temperatura del fluido",
+"Radiación de una superficie a su entorno|q=eps*5.670374e-8*a*(t1^4-t2^4)|q:Calor por unidad de tiempo [W];eps:Emisividad (de 0 a 1);a:Área [m²];t1:Temperatura de la superficie [K];t2:Temperatura del entorno [K]",
+"Diferencia media logarítmica|dtml=(dt1-dt2)/ln(dt1/dt2)|dtml:Diferencia media logarítmica;dt1:Diferencia de temperatura en un extremo;dt2:Diferencia de temperatura en el otro extremo",
+"Intercambiador de calor|q=u*a*dtml|q:Calor por unidad de tiempo [W];u:Coeficiente global [W/(m².K)];a:Área de intercambio [m²];dtml:Diferencia media logarítmica",
+"Coeficiente global (pared plana)|1/u=1/h1+l/k+1/h2|u:Coeficiente global [W/(m².K)];h1:Convección del lado 1 [W/(m².K)];l:Espesor de la pared [m];k:Conductividad de la pared [W/(m.K)];h2:Convección del lado 2 [W/(m².K)]",
+"Dittus-Boelter|nu=0.023*re^0.8*pr^n|nu:Número de Nusselt;re:Número de Reynolds;pr:Número de Prandtl;n:0.4 si el fluido se calienta, 0.3 si se enfría",
+"Difusividad térmica|alfa=k/(rho*cp)|alfa:Difusividad térmica [m²/s];k:Conductividad térmica [W/(m.K)];rho:Densidad [kg/m³];cp:Calor específico [J/(kg.K)]",
+"Resistencia térmica de conducción|rt=l/(k*a)|rt:Resistencia térmica [K/W];l:Espesor [m];k:Conductividad térmica [W/(m.K)];a:Área [m²]",
+"Resistencia térmica de convección|rt=1/(h*a)|rt:Resistencia térmica [K/W];h:Coeficiente de convección [W/(m².K)];a:Área [m²]",
+"Radio crítico de aislación (cilindro)|rc=k/h|rc:Radio crítico [m];k:Conductividad de la aislación [W/(m.K)];h:Coeficiente de convección exterior [W/(m².K)]",
+"Enfriamiento de un cuerpo (sistema concentrado)|(t-tinf)/(t0-tinf)=exp(-h*a*tt/(rho*v*cp))|t:Temperatura en el tiempo tt;tinf:Temperatura del fluido;t0:Temperatura inicial;h:Coeficiente de convección [W/(m².K)];a:Área [m²];tt:Tiempo [s];rho:Densidad [kg/m³];v:Volumen [m³];cp:Calor específico [J/(kg.K)]"}; END;
+  IF nCat==6 THEN RETURN {
+"Ley de Fick|j=d*(c1-c2)/l|j:Flujo difusivo [mol/(m².s)];d:Difusividad [m²/s];c1:Concentración en el lado 1 [mol/m³];c2:Concentración en el lado 2 [mol/m³];l:Espesor [m]",
+"Transferencia de masa por convección|na=kc*(c1-c2)|na:Flujo molar [mol/(m².s)];kc:Coeficiente de transferencia de masa [m/s];c1:Concentración en la superficie;c2:Concentración en el seno del fluido",
+"Equilibrio con volatilidad relativa|y=alfa*x/(1+(alfa-1)*x)|y:Fracción molar en el vapor;alfa:Volatilidad relativa;x:Fracción molar en el líquido",
+"Fenske (etapas mínimas)|nmin=ln((xd/(1-xd))*((1-xb)/xb))/ln(alfa)|nmin:Número mínimo de etapas;xd:Fracción molar en el destilado;xb:Fracción molar en el fondo;alfa:Volatilidad relativa",
+"Reflujo mínimo (alimentación en su punto de burbuja)|rmin=(xd-ye)/(ye-xe)|rmin:Relación de reflujo mínima;xd:Fracción molar en el destilado;ye:Vapor en equilibrio con la alimentación;xe:Fracción molar de la alimentación",
+"Balance global de una columna|f=d+b|f:Alimentación;d:Destilado;b:Fondo",
+"Balance del componente liviano|f*zf=d*xd+b*xb|f:Alimentación;zf:Fracción molar en la alimentación;d:Destilado;xd:Fracción molar en el destilado;b:Fondo;xb:Fracción molar en el fondo",
+"Línea de operación de rectificación|y=r/(r+1)*x+xd/(r+1)|y:Fracción molar en el vapor;r:Relación de reflujo;x:Fracción molar en el líquido;xd:Fracción molar en el destilado",
+"Destilación diferencial (Rayleigh)|ln(f/w)=1/(alfa-1)*ln(xf*(1-xw)/(xw*(1-xf)))+ln((1-xw)/(1-xf))|f:Moles iniciales;w:Moles que quedan;alfa:Volatilidad relativa;xf:Fracción molar inicial;xw:Fracción molar final en el líquido",
+"Ley de Dalton|pa=y*p|pa:Presión parcial;y:Fracción molar en el gas;p:Presión total",
+"Raoult modificada|y*p=x*gam*psat|y:Fracción molar en el vapor;p:Presión total;x:Fracción molar en el líquido;gam:Coeficiente de actividad;psat:Presión de vapor del componente puro",
+"Humedad absoluta del aire|w=0.622*pv/(p-pv)|w:Humedad absoluta [kg de agua / kg de aire seco];pv:Presión parcial del vapor de agua;p:Presión total"}; END;
+  IF nCat==7 THEN RETURN {
+"Moles a partir de la masa|n=m/mm|n:Moles;m:Masa [g];mm:Masa molar [g/mol]",
+"Molaridad|c=n/v|c:Concentración [mol/L];n:Moles;v:Volumen de solución [L]",
+"Dilución|c1*v1=c2*v2|c1:Concentración inicial;v1:Volumen inicial;c2:Concentración final;v2:Volumen final",
+"pH|ph=-log(h)|ph:pH;h:Concentración de H+ [mol/L]",
+"Ácido débil|ka=h^2/(c-h)|ka:Constante de acidez;h:Concentración de H+ [mol/L];c:Concentración inicial del ácido [mol/L]",
+"Henderson-Hasselbalch|ph=pka+log(a/ha)|ph:pH;pka:pKa del ácido;a:Concentración de la base conjugada;ha:Concentración del ácido",
+"Ecuación de Nernst|pot=pot0-r*t/(n*f)*ln(q)|pot:Potencial de la celda [V];pot0:Potencial estándar [V];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];n:Electrones transferidos;f:Constante de Faraday [96485 C/mol];q:Cociente de reacción",
+"Ley de Faraday (electrólisis)|m=ic*t*mm/(n*f)|m:Masa depositada [g];ic:Corriente [A];t:Tiempo [s];mm:Masa molar [g/mol];n:Electrones por ion;f:Constante de Faraday [96485 C/mol]",
+"Presión osmótica|po=c*r*t|po:Presión osmótica;c:Concentración molar;r:Constante R (en las mismas unidades);t:Temperatura [K]",
+"Descenso crioscópico o ascenso ebulloscópico|dt=kk*mb*iv|dt:Cambio de temperatura;kk:Constante crioscópica o ebulloscópica;mb:Molalidad [mol/kg];iv:Factor de van't Hoff",
+"Beer-Lambert|ab=eps*l*c|ab:Absorbancia;eps:Absortividad molar [L/(mol.cm)];l:Camino óptico [cm];c:Concentración [mol/L]",
+"Fracción molar (dos componentes)|x1=n1/(n1+n2)|x1:Fracción molar del componente 1;n1:Moles del componente 1;n2:Moles del componente 2",
+"Rendimiento|rend=real/teor*100|rend:Rendimiento [%];real:Cantidad obtenida;teor:Cantidad teórica"}; END;
+  IF nCat==8 THEN RETURN {
+"Decaimiento radiactivo|n=n0*exp(-lam*t)|n:Núcleos en el tiempo t;n0:Núcleos iniciales;lam:Constante de decaimiento [1/s];t:Tiempo [s]",
+"Actividad|a=lam*n|a:Actividad [Bq];lam:Constante de decaimiento [1/s];n:Cantidad de núcleos",
+"Actividad en el tiempo|a=a0*exp(-lam*t)|a:Actividad en el tiempo t;a0:Actividad inicial;lam:Constante de decaimiento;t:Tiempo",
+"Actividad con la vida media|a=a0*0.5^(t/th)|a:Actividad en el tiempo t;a0:Actividad inicial;t:Tiempo;th:Vida media (misma unidad que t)",
+"Vida media|th=ln(2)/lam|th:Vida media;lam:Constante de decaimiento",
+"Vida promedio|tm=1/lam|tm:Vida promedio;lam:Constante de decaimiento",
+"Núcleos en una masa|n=m*6.02214076e23/mm|n:Cantidad de núcleos;m:Masa [g];mm:Masa molar [g/mol]",
+"Actividad de una masa|a=ln(2)/th*m*6.02214076e23/mm|a:Actividad [Bq];th:Vida media [s];m:Masa [g];mm:Masa molar [g/mol]",
+"Activación neutrónica|a=nn*sig*phi*(1-exp(-lam*t))|a:Actividad [Bq];nn:Cantidad de núcleos blanco;sig:Sección eficaz microscópica [cm²];phi:Flujo neutrónico [n/(cm².s)];lam:Constante de decaimiento [1/s];t:Tiempo de irradiación [s]",
+"Atenuación en un blindaje|phi=phi0*exp(-mu*x)|phi:Intensidad detrás del blindaje;phi0:Intensidad incidente;mu:Coeficiente de atenuación lineal [1/cm];x:Espesor [cm]",
+"Atenuación con factor de acumulación|phi=bu*phi0*exp(-mu*x)|phi:Intensidad detrás del blindaje;bu:Factor de acumulación (buildup);phi0:Intensidad incidente;mu:Coeficiente de atenuación lineal [1/cm];x:Espesor [cm]",
+"Capa hemirreductora|hvl=ln(2)/mu|hvl:Espesor que reduce a la mitad;mu:Coeficiente de atenuación lineal",
+"Capa decirreductora|tvl=ln(10)/mu|tvl:Espesor que reduce a la décima parte;mu:Coeficiente de atenuación lineal",
+"Ley del inverso del cuadrado|d2=d1*(r1/r2)^2|d2:Tasa de dosis a la distancia r2;d1:Tasa de dosis a la distancia r1;r1:Distancia 1;r2:Distancia 2",
+"Tasa de dosis de una fuente puntual|dr=gam*a/r^2|dr:Tasa de dosis;gam:Constante gamma específica del nucleido;a:Actividad;r:Distancia a la fuente",
+"Densidad atómica|nd=rho*6.02214076e23/mm|nd:Densidad atómica [átomos/cm³];rho:Densidad [g/cm³];mm:Masa molar [g/mol]",
+"Sección eficaz macroscópica|sigm=nd*sig|sigm:Sección macroscópica [1/cm];nd:Densidad atómica [átomos/cm³];sig:Sección microscópica [cm²]",
+"Camino libre medio|lcm=1/sigm|lcm:Camino libre medio [cm];sigm:Sección macroscópica [1/cm]",
+"Tasa de reacción|rx=phi*sigm|rx:Reacciones por cm³ y por segundo;phi:Flujo neutrónico [n/(cm².s)];sigm:Sección macroscópica [1/cm]",
+"Potencia térmica de un reactor|pot=ef*sigf*phi*vol|pot:Potencia [W];ef:Energía por fisión [J] (unos 3.2E-11);sigf:Sección macroscópica de fisión [1/cm];phi:Flujo neutrónico medio [n/(cm².s)];vol:Volumen del núcleo [cm³]",
+"Fórmula de los cuatro factores|kinf=eta*eps*pe*f|kinf:Factor de multiplicación infinito;eta:Factor de reproducción;eps:Factor de fisión rápida;pe:Probabilidad de escape a las resonancias;f:Factor de utilización térmica",
+"Factor de multiplicación efectivo|keff=kinf*pf*pt|keff:Factor de multiplicación efectivo;kinf:Factor de multiplicación infinito;pf:Probabilidad de no fuga rápida;pt:Probabilidad de no fuga térmica",
+"k efectivo con un grupo de energía|keff=kinf/(1+l2*bg2)|keff:Factor de multiplicación efectivo;kinf:Factor de multiplicación infinito;l2:Área de difusión [cm²];bg2:Buckling geométrico [1/cm²]",
+"Reactividad|rho=(k-1)/k|rho:Reactividad;k:Factor de multiplicación efectivo",
+"Longitud de difusión|ld=sqrt(dc/siga)|ld:Longitud de difusión [cm];dc:Coeficiente de difusión [cm];siga:Sección macroscópica de absorción [1/cm]",
+"Buckling de una esfera|bg2=(pi/r)^2|bg2:Buckling geométrico;r:Radio (incluida la distancia extrapolada)",
+"Buckling de un cilindro|bg2=(2.405/r)^2+(pi/h)^2|bg2:Buckling geométrico;r:Radio (incluida la distancia extrapolada);h:Altura (incluida la distancia extrapolada)",
+"Buckling de una placa|bg2=(pi/a)^2|bg2:Buckling geométrico;a:Espesor (incluida la distancia extrapolada)",
+"Período estable del reactor|tp=(beta-rho)/(lam*rho)|tp:Período [s];beta:Fracción de neutrones retardados;rho:Reactividad (positiva y menor que beta);lam:Constante de decaimiento de los precursores [1/s]",
+"Defecto de masa a energía|en=dm*931.494|en:Energía [MeV];dm:Defecto de masa [u]",
+"Energía de enlace|be=(z*1.007825+(a-z)*1.008665-m)*931.494|be:Energía de enlace [MeV];z:Número de protones;a:Número másico;m:Masa atómica [u]",
+"Energía mínima tras un choque elástico|emin=e0*((a-1)/(a+1))^2|emin:Energía mínima del neutrón después del choque;e0:Energía antes del choque;a:Número másico del núcleo"}; END;
+  IF nCat==9 THEN RETURN {
+"Reynolds|re=rho*v*l/mu|re:Número de Reynolds;rho:Densidad [kg/m³];v:Velocidad [m/s];l:Longitud característica [m];mu:Viscosidad dinámica [Pa.s]",
+"Prandtl|pr=cp*mu/k|pr:Número de Prandtl;cp:Calor específico [J/(kg.K)];mu:Viscosidad dinámica [Pa.s];k:Conductividad térmica [W/(m.K)]",
+"Nusselt|nu=h*l/k|nu:Número de Nusselt;h:Coeficiente de convección [W/(m².K)];l:Longitud característica [m];k:Conductividad del fluido [W/(m.K)]",
+"Schmidt|sc=mu/(rho*d)|sc:Número de Schmidt;mu:Viscosidad dinámica [Pa.s];rho:Densidad [kg/m³];d:Difusividad [m²/s]",
+"Sherwood|sh=kc*l/d|sh:Número de Sherwood;kc:Coeficiente de transferencia de masa [m/s];l:Longitud característica [m];d:Difusividad [m²/s]",
+"Péclet (calor)|pe=v*l/alfa|pe:Número de Péclet;v:Velocidad [m/s];l:Longitud característica [m];alfa:Difusividad térmica [m²/s]",
+"Grashof|gr=g*beta*(ts-tf)*l^3/vis^2|gr:Número de Grashof;g:Gravedad [9.80665 m/s²];beta:Coeficiente de expansión térmica [1/K];ts:Temperatura de la superficie;tf:Temperatura del fluido;l:Longitud característica [m];vis:Viscosidad cinemática [m²/s]",
+"Rayleigh|ra=gr*pr|ra:Número de Rayleigh;gr:Número de Grashof;pr:Número de Prandtl",
+"Biot|bi=h*l/k|bi:Número de Biot;h:Coeficiente de convección [W/(m².K)];l:Longitud característica [m];k:Conductividad del sólido [W/(m.K)]",
+"Fourier|fo=alfa*t/l^2|fo:Número de Fourier;alfa:Difusividad térmica [m²/s];t:Tiempo [s];l:Longitud característica [m]",
+"Lewis|le=alfa/d|le:Número de Lewis;alfa:Difusividad térmica [m²/s];d:Difusividad de masa [m²/s]",
+"Stanton|st=h/(rho*v*cp)|st:Número de Stanton;h:Coeficiente de convección [W/(m².K)];rho:Densidad [kg/m³];v:Velocidad [m/s];cp:Calor específico [J/(kg.K)]",
+"Weber|we=rho*v^2*l/sig|we:Número de Weber;rho:Densidad [kg/m³];v:Velocidad [m/s];l:Longitud característica [m];sig:Tensión superficial [N/m]",
+"Froude|fr=v/sqrt(g*l)|fr:Número de Froude;v:Velocidad [m/s];g:Gravedad [9.80665 m/s²];l:Longitud característica [m]",
+"Mach|ma=v/c|ma:Número de Mach;v:Velocidad;c:Velocidad del sonido",
+"Euler|eu=dp/(rho*v^2)|eu:Número de Euler;dp:Caída de presión [Pa];rho:Densidad [kg/m³];v:Velocidad [m/s]"}; END;
+  IF nCat==10 THEN RETURN {
+"Respuesta de primer orden a un escalón|y=kp*am*(1-exp(-t/tau))|y:Salida en el tiempo t;kp:Ganancia del proceso;am:Amplitud del escalón;t:Tiempo;tau:Constante de tiempo",
+"Sobrepaso (segundo orden)|os=exp(-pi*z/sqrt(1-z^2))|os:Sobrepaso (fracción del valor final);z:Factor de amortiguamiento (menor que 1)",
+"Razón de decaimiento|dr=exp(-2*pi*z/sqrt(1-z^2))|dr:Razón de decaimiento;z:Factor de amortiguamiento (menor que 1)",
+"Tiempo de pico|tp=pi/(wn*sqrt(1-z^2))|tp:Tiempo de pico;wn:Frecuencia natural [rad/tiempo];z:Factor de amortiguamiento (menor que 1)",
+"Tiempo de asentamiento (2 %)|ts=4/(z*wn)|ts:Tiempo de asentamiento;z:Factor de amortiguamiento;wn:Frecuencia natural [rad/tiempo]",
+"Frecuencia amortiguada|wd=wn*sqrt(1-z^2)|wd:Frecuencia amortiguada;wn:Frecuencia natural;z:Factor de amortiguamiento (menor que 1)",
+"Período de oscilación|per=2*pi/(wn*sqrt(1-z^2))|per:Período de oscilación;wn:Frecuencia natural [rad/tiempo];z:Factor de amortiguamiento (menor que 1)"}; END;
+  RETURN gMias;
+END;
+
+// Guarda una variable de trabajo (A a N) para las formulas.
+FmPon(nIdx,nVal)
+BEGIN
+  IF nIdx==1 THEN A:=nVal; END;
+  IF nIdx==2 THEN B:=nVal; END;
+  IF nIdx==3 THEN C:=nVal; END;
+  IF nIdx==4 THEN D:=nVal; END;
+  IF nIdx==5 THEN F:=nVal; END;
+  IF nIdx==6 THEN G:=nVal; END;
+  IF nIdx==7 THEN H:=nVal; END;
+  IF nIdx==8 THEN J:=nVal; END;
+  IF nIdx==9 THEN K:=nVal; END;
+  IF nIdx==10 THEN L:=nVal; END;
+  IF nIdx==11 THEN M:=nVal; END;
+  IF nIdx==12 THEN N:=nVal; END;
+END;
+
+// Usa una formula: se elige la incognita, se cargan los datos y resuelve.
+FmUsar(sReg)
+BEGIN
+  LOCAL lPar,sNom,sEcu,sDes,lVar,lDes,lTmp,nIdx;
+  LOCAL lUno,nPos,nCnt,nInc,lVal,lLab,lAyu,lIni;
+  LOCAL lDat,lDst,lLet,nKk,nSol,lLin,nBot,lGui;
+  LOCAL lOpc,nSem,nFin,sAux,lSol;
+  lPar:=UiPartir(sReg,"|");
+  IF SIZE(lPar)<2 THEN RETURN 0; END;
+  sNom:=lPar(1);
+  sEcu:=lPar(2);
+  sDes:="";
+  IF SIZE(lPar)>=3 THEN sDes:=lPar(3); END;
+  lVar:=ExVars(sEcu);
+  nCnt:=SIZE(lVar);
+  IF nCnt<1 OR nCnt>13 THEN
+    UiAviso("La fórmula debe tener entre 1 y 13 variables.");
+    RETURN 0;
+  END;
+  // descripcion de cada variable
+  lDes:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lDes:=CONCAT(lDes,{""});
+  END;
+  IF sDes<>"" THEN
+    lTmp:=UiPartir(sDes,";");
+    FOR nIdx FROM 1 TO SIZE(lTmp) DO
+      lUno:=UiPartir(lTmp(nIdx),":");
+      IF SIZE(lUno)>=2 THEN
+        nPos:=UiPos(lVar,ExMin(lUno(1)));
+        IF nPos>0 THEN lDes(nPos):=lUno(2); END;
+      END;
+    END;
+  END;
+  lVal:={};
+  lOpc:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lVal:=CONCAT(lVal,{0});
+    sAux:=lDes(nIdx);
+    IF sAux=="" THEN sAux:="Variable "+lVar(nIdx); END;
+    lOpc:=CONCAT(lOpc,{sAux});
+  END;
+  lLet:={"A","B","C","D","F","G","H","J","K","L","M","N"};
+  nFin:=0;
+  REPEAT
+    nInc:=UiMenu("Calcular: "+sNom,lOpc,lVar);
+    IF nInc==0 THEN
+      nFin:=1;
+    ELSE
+      lLab:={};
+      lAyu:={};
+      lIni:={};
+      FOR nIdx FROM 1 TO nCnt DO
+        IF nIdx<>nInc THEN
+          lLab:=CONCAT(lLab,{lVar(nIdx)+" = "});
+          lAyu:=CONCAT(lAyu,{lOpc(nIdx)});
+          lIni:=CONCAT(lIni,{lVal(nIdx)});
+        END;
+      END;
+      lDat:=UiPedir(sNom,lLab,lAyu,lIni,0);
+      IF SIZE(lDat)>0 THEN
+        // variables conocidas a A, B, C...  La incognita va a X.
+        lDst:={};
+        nKk:=0;
+        FOR nIdx FROM 1 TO nCnt DO
+          IF nIdx==nInc THEN
+            lDst:=CONCAT(lDst,{"X"});
+          ELSE
+            nKk:=nKk+1;
+            lDst:=CONCAT(lDst,{lLet(nKk)});
+            lVal(nIdx):=lDat(nKk);
+            FmPon(nKk,lDat(nKk));
+          END;
+        END;
+        IF ExPrep(sEcu,lVar,lDst) THEN
+          UiCalc(sNom);
+          nSem:=lVal(nInc);
+          IF nSem==0 THEN
+            nSem:=1;
+            // fracciones y eficiencias: se busca primero entre 0 y 1
+            IF UiEn(lOpc(nInc),"de 0 a 1")>0 OR UiEn(lOpc(nInc),"menor que 1")>0 OR UiEn(lOpc(nInc),
+                "Fracción")>0 THEN
+              nSem:=0.5;
+            END;
+            // temperaturas absolutas y numeros de Reynolds
+            IF UiEn(lOpc(nInc),"[K]")>0 THEN nSem:=300; END;
+            IF UiEn(lOpc(nInc),"Reynolds")>0 THEN nSem:=10000; END;
+          END;
+          nBot:=1;
+          WHILE nBot==1 DO
+            lSol:=ExRaices(nSem);
+            IF SIZE(lSol)==0 THEN
+              UiAviso("No encontré solución con esos datos. Revisar los valores (y las unidades).");
+              nBot:=0;
+            ELSE
+              nSol:=lSol(1);
+              lVal(nInc):=nSol;
+              lLin:={"#Fórmula"," "+sEcu,"#Resultado","!"+lVar(nInc)+" = "+UiNum(nSol,10),"~"+lOpc(nInc)};
+              IF SIZE(lSol)>1 THEN
+                lLin:=CONCAT(lLin,{"#La ecuación tiene otras soluciones"});
+                FOR nIdx FROM 2 TO SIZE(lSol) DO
+                  lLin:=CONCAT(lLin,{" "+lVar(nInc)+" = "+UiNum(lSol(nIdx),10)});
+                END;
+                lLin:=CONCAT(lLin,{"~Elegir la que tenga sentido físico. El botón Otra toma como principal la más cercana a un valor que indiques."});
+              END;
+              lLin:=CONCAT(lLin,{"#Datos usados"});
+              FOR nIdx FROM 1 TO nCnt DO
+                IF nIdx<>nInc THEN
+                  lLin:=CONCAT(lLin,{" "+lVar(nIdx)+" = "+UiNum(lVal(nIdx),10)});
+                END;
+              END;
+              nBot:=UiTexto(sNom,lLin,{"Otra","",""});
+              IF nBot==1 THEN
+                lGui:=UiPedir("Buscar otra solución",{lVar(nInc)+" cerca de = "},
+                    {"Valor aproximado de la solución que se busca"},{nSol},0);
+                IF SIZE(lGui)>0 THEN
+                  nSem:=lGui(1);
+                  UiCalc(sNom);
+                ELSE
+                  nBot:=0;
+                END;
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+  RETURN 1;
+END;
+
+IngGuarda()
+BEGIN
+  IFERR
+    HVars("INGF"):=gMias;
+  THEN
+    UiAviso("No se pudo guardar en la memoria permanente. Las fórmulas quedan hasta que se edite el programa.");
+  END;
+END;
+
+FmAgregar()
+BEGIN
+  LOCAL lDat,lVar,sNom,sEcu,sDes;
+  lDat:=UiPedir("Nueva fórmula",{"Nombre: ","Ecuación: ","Notas (opcional): "},
+      {"Nombre para encontrarla después","Con signo = y multiplicando con *. Ej: e0=m*c^2",
+      "Opcional. Ej:  m:Masa [kg];v:Velocidad [m/s]"},{"","",""},1);
+  IF SIZE(lDat)==0 THEN RETURN 0; END;
+  sNom:=lDat(1);
+  sEcu:=lDat(2);
+  sDes:=lDat(3);
+  IF sNom=="" OR sEcu=="" THEN
+    UiAviso("Faltan el nombre o la ecuación.");
+    RETURN 0;
+  END;
+  IF UiEn(sNom,"|")>0 OR UiEn(sEcu,"|")>0 OR UiEn(sDes,"|")>0 THEN
+    UiAviso("No usar el símbolo | en los textos.");
+    RETURN 0;
+  END;
+  IF UiEn(sEcu,"=")==0 THEN
+    UiAviso("La ecuación necesita un signo = .");
+    RETURN 0;
+  END;
+  lVar:=ExVars(sEcu);
+  IF SIZE(lVar)<1 OR SIZE(lVar)>13 THEN
+    UiAviso("La ecuación debe tener entre 1 y 13 variables.");
+    RETURN 0;
+  END;
+  gMias:=CONCAT(gMias,{sNom+"|"+sEcu+"|"+sDes});
+  IngGuarda();
+  UiAviso("Fórmula guardada en Mis fórmulas.");
+  RETURN 1;
+END;
+
+FmBorrar()
+BEGIN
+  LOCAL lNom,nIdx,lPar,nSel,lNue;
+  IF SIZE(gMias)==0 THEN
+    UiAviso("Todavía no hay fórmulas propias.");
+    RETURN 0;
+  END;
+  lNom:={};
+  FOR nIdx FROM 1 TO SIZE(gMias) DO
+    lPar:=UiPartir(gMias(nIdx),"|");
+    lNom:=CONCAT(lNom,{lPar(1)});
+  END;
+  nSel:=UiMenu("¿Cuál borrar?",lNom,{});
+  IF nSel==0 THEN RETURN 0; END;
+  lNue:={};
+  FOR nIdx FROM 1 TO SIZE(gMias) DO
+    IF nIdx<>nSel THEN lNue:=CONCAT(lNue,{gMias(nIdx)}); END;
+  END;
+  gMias:=lNue;
+  IngGuarda();
+  RETURN 1;
+END;
+
+// Lista las formulas de una categoria y deja usar una.
+FmCategoria(nCat)
+BEGIN
+  LOCAL lReg,lNom,lSim,nIdx,lPar,nSel,nFin,lCat;
+  LOCAL nBase,nAux;
+  lCat:=FmCats();
+  nFin:=0;
+  REPEAT
+    lReg:=FmDatos(nCat);
+    lNom:={};
+    lSim:={};
+    nBase:=0;
+    IF nCat==1 THEN
+      lNom:={"Agregar una fórmula nueva","Borrar una fórmula"};
+      lSim:={"+","-"};
+      nBase:=2;
+    END;
+    FOR nIdx FROM 1 TO SIZE(lReg) DO
+      lPar:=UiPartir(lReg(nIdx),"|");
+      lNom:=CONCAT(lNom,{lPar(1)});
+      lSim:=CONCAT(lSim,{STRING(nIdx)});
+    END;
+    nSel:=UiMenu(lCat(nCat),lNom,lSim);
+    IF nSel==0 THEN
+      nFin:=1;
+    ELSE
+      IF nCat==1 AND nSel==1 THEN nAux:=FmAgregar(); END;
+      IF nCat==1 AND nSel==2 THEN nAux:=FmBorrar(); END;
+      IF nSel>nBase THEN nAux:=FmUsar(lReg(nSel-nBase)); END;
+    END;
+  UNTIL nFin;
+END;
+
+MdFormulas()
+BEGIN
+  LOCAL nCat,nFin;
+  nFin:=0;
+  REPEAT
+    nCat:=UiMenu("Fórmulas por materia",FmCats(),{"+","T","k","Re","q","y,x","pH","Bq","Nu","PID"});
+    IF nCat==0 THEN
+      nFin:=1;
+    ELSE
+      FmCategoria(nCat);
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Ayuda ----------
+
+// Prueba rapida de las funciones de la calculadora que usa el programa.
+// Sirve para ubicar un problema: cada renglon muestra lo que devolvio.
+MdPrueba()
+BEGIN
+  LOCAL lLin,vRes,sTxt,nMal,lTmp;
+  UiCalc("Prueba");
+  lLin:={"#CAS, primer método (debe dar 2*x)"};
+  vRes:="error";
+  IFERR
+    vRes:=CAS(EVAL("string(diff(x^2,x))"));
+  THEN
+    vRes:="error";
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+vRes,"#CAS, segundo método (debe dar 2*x)"});
+  vRes:="error";
+  IFERR
+    vRes:=CAS.expr("string(diff(x^2,x))");
+  THEN
+    vRes:="error";
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+vRes,"#CAS completo: integral de x*exp(x)"," "+ExCas("int(x*exp(x),x)")});
+  lLin:=CONCAT(lLin,{"#Cálculo numérico: sqrt(16)+pi (debe dar 7.14159...)"});
+  vRes:=ExValor("sqrt(16)+pi");
+  IF gBad THEN
+    lLin:=CONCAT(lLin,{" error"});
+  ELSE
+    lLin:=CONCAT(lLin,{" "+STRING(vRes)});
+  END;
+  gBad:=0;
+  lLin:=CONCAT(lLin,{"#Formato de número: 1234.5678 se ve como"," "+STRING(1234.5678)});
+  lLin:=CONCAT(lLin,{"#Ángulo: 1 = radianes, 57.3 = grados"," "+STRING(gAng)});
+  lLin:=CONCAT(lLin,{"#Reloj interno (un número grande; -1 = no disponible)"," "+STRING(UiReloj())});
+  lLin:=CONCAT(lLin,{"#Normal acumulada en 1.96 (debe dar 0.975)"});
+  gBad:=0;
+  vRes:=PrCall("NORMALD_CDF(A,B,C)",0,1,1.96);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"#t de Student, chi cuadrado y F acumuladas"});
+  gBad:=0;
+  vRes:=PrCall("STUDENT_CDF(A,C)",10,0,1);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("CHISQUARE_CDF(A,C)",5,0,4);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("FISHER_CDF(A,B,C)",5,10,2);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar 0.82955   0.45058   0.83581",
+      "#Densidades t, chi cuadrado y F, y cuantil normal"});
+  gBad:=0;
+  vRes:=PrCall("STUDENT(A,C)",10,0,1);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("CHISQUARE(A,C)",5,0,4);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("FISHER(A,B,C)",5,10,2);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("NORMALD_ICDF(A,B,C)",0,1,0.975);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar 0.23036   0.14398   0.16201   1.96",
+      "#Matrices: determinante, rango y traza"});
+  gBad:=0;
+  vRes:=MtValor("DET([[1,2],[3,4]])");
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  vRes:=MtValor("RANK([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  vRes:=MtValor("TRACE([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar -2   2   5","#Transpuesta, inversa, autovalores y escalonada"});
+  sTxt:="";
+  vRes:=MtValor("TRN([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("[[1,2],[3,4]]^(-1)");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("EIGENVAL([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("RREF([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error"; ELSE sTxt:=sTxt+"bien"; END;
+  gBad:=0;
+  lLin:=CONCAT(lLin,{" "+sTxt,"#Memoria permanente (debe decir bien)"});
+  nMal:=0;
+  lTmp:={};
+  IFERR
+    HVars("INGT"):={"prueba"};
+    lTmp:=HVars("INGT");
+  THEN
+    nMal:=1;
+  END;
+  sTxt:="error";
+  IF nMal==0 AND TYPE(lTmp)==6 THEN
+    IF SIZE(lTmp)==1 THEN sTxt:="bien"; END;
+  END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Si algo dice error o da otro valor, anotar cuál: con ese dato se puede corregir."});
+  UiVer("Prueba",lLin);
+END;
+
+
+MdAyuda()
+BEGIN
+  LOCAL lLin,nBot;
+  lLin:={"~ING versión 1.1","#Cómo moverse"," Tocar un cuadro o un renglón para entrar.",
+      " Esc o el botón Volver: pantalla anterior."," Teclas 1 a 7: eligen un renglón del menú.",
+      " Flechas: cambian de página.","#Cómo escribir una función"," Se usan las teclas normales: X, SIN, LN, ^, etc.",
+      " Da igual mayúsculas o minúsculas."," Multiplicar siempre con *  (a*b, no ab).",
+      " Raíz: sqrt(x)     Exponencial: exp(x)     Pi: pi"," log es en base 10 y ln es el natural.",
+      " Infinito: inf   o   -inf"," Números grandes: 6.02e23  o con la tecla EEX.",
+      "#Decimales"," Usar punto decimal (ajuste de fábrica)."," Formato de número recomendado: Estándar.",
+      "#Ángulos"," Arriba a la derecha se ve RAD o DEG: es el ajuste de la calculadora y vale para gráficos, fórmulas e iteraciones.",
+      " Derivadas, integrales y límites usan el ajuste de ángulo del CAS (radianes de fábrica).",
+      "#Matrices"," A es M1, B es M2 y el resultado queda en M3. Se pueden usar después desde Inicio.",
+      "#Fórmulas"," Elegir la variable a calcular y cargar el resto. Sirve para despejar cualquiera, aunque no se pueda despejar a mano.",
+      " Usa las variables A a N, X e Y de Inicio como memoria de trabajo."," Las fórmulas propias se guardan en la variable INGF.",
+      "#Apps de la calculadora"," Algunos botones abren una app (Función, Gráfico 3D, Hoja de cálculo, Estadística). Para volver, ejecutar ING otra vez.",
+      "#Si un resultado simbólico sale raro"," Puede haber una variable con un valor guardado en el CAS. En la pantalla CAS escribir  purge(x)  con el nombre de esa variable.",
+      "#Resultados largos"," Con Sig. y Ant. (o las flechas) se pasa de página.",
+      "#Si algo falla"," El botón Prueba revisa las funciones de la calculadora que usa el programa y muestra cuál no responde.",
+      " El botón Diagn. activa el modo diagnóstico: el error se muestra con su número de renglón."};
+  nBot:=1;
+  WHILE nBot==1 DO
+    nBot:=UiTexto("Ayuda",lLin,{"Diagn.","Prueba",""});
+    IF nBot==2 THEN
+      MdPrueba();
+      nBot:=1;
+    ELSE
+    IF nBot==1 THEN
+      IF gDepura==1 THEN
+        gDepura:=0;
+        UiAviso("Modo diagnóstico desactivado.");
+      ELSE
+        gDepura:=1;
+        UiAviso("Modo diagnóstico activado: si un cálculo falla, la calculadora muestra el error y el número de renglón. Sirve para reportar un problema.");
+      END;
+    END;
+    END;
+  END;
+END;
+
+// ---------- Pantalla principal ----------
+
+IngIni()
+BEGIN
+  LOCAL vTmp,nMal;
+  gRes:="0";
+  gLhs:="0";
+  gRhs:="0";
+  gBad:=0;
+  gErr:="";
+  gSale:=0;
+  gMenTit:={};
+  gMenTop:={};
+  UiMarca();
+  IF TYPE(gFun)<>2 THEN gFun:="x^2*sin(x)"; END;
+  IF TYPE(gDepura)<>0 THEN gDepura:=0; END;
+  gAng:=ACOS(-1)/3.14159265358979;
+  // formulas propias guardadas en la variable INGF
+  nMal:=0;
+  vTmp:=0;
+  IFERR
+    IF UiPos(HVars,"INGF")>0 THEN vTmp:=HVars("INGF"); END;
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 AND TYPE(vTmp)==6 THEN
+    gMias:=vTmp;
+  END;
+  IF TYPE(gMias)<>6 THEN gMias:={}; END;
+END;
+
+// Dibuja una de las dos paginas de cuadros.
+IngPortada(nPag)
+BEGIN
+  LOCAL lNom,lSim,lCol,nIdx,nPx,nPy,sTit,nCol;
+  IF nPag==1 THEN
+    sTit:="ING   Matemática";
+    lNom:={"Gráficos","Derivadas","Integrales","Límites","Ecuaciones",
+        "Polinomios","Ec. diferenc.","Laplace","Matrices","Probabilidad","Coordenadas",
+        "Campos"};
+    lSim:={"f(x)","d/dx","S dx","lim","x = ?","ax²+b","y' = f","L{f}","[A]","P(X)","r, t","grad"};
+    lCol:={RGB(31,95,160),RGB(31,95,160),RGB(31,95,160),RGB(31,95,160),
+        RGB(20,122,108),RGB(20,122,108),RGB(20,122,108),RGB(20,122,108),RGB(126,
+        66,150),RGB(126,66,150),RGB(126,66,150),RGB(126,66,150)};
+  ELSE
+    sTit:="ING   Ingeniería";
+    lNom:={"Fórmulas","Iteración","Unidades","Constantes","Interpolar",
+        "Masa molar","Adimension.","Nuclear","Álgebra","Estadística","Planilla",
+        "Ayuda"};
+    lSim:={"F=m.a","k+1","kg | lb","R, NA","y(x)","H2O","Re, Pr","Bq","a + b","Dat","A1","?"};
+    lCol:={RGB(186,92,28),RGB(186,92,28),RGB(186,92,28),RGB(186,92,28),
+        RGB(46,125,60),RGB(46,125,60),RGB(46,125,60),RGB(46,125,60),RGB(70,84,
+        120),RGB(70,84,120),RGB(70,84,120),RGB(70,84,120)};
+  END;
+  UiFondo(sTit);
+  FOR nIdx FROM 1 TO 12 DO
+    nPx:=4+((nIdx-1) MOD 4)*79;
+    nPy:=29+IP((nIdx-1)/4)*63;
+    nCol:=lCol(nIdx);
+    RECT_P(nPx,nPy,nPx+74,nPy+58,nCol,nCol);
+    TEXTOUT_P(lSim(nIdx),nPx+5,nPy+6,5,RGB(255,255,255),68);
+    TEXTOUT_P(lNom(nIdx),nPx+5,nPy+41,1,RGB(255,255,255),68);
+  END;
+  IF nPag==1 THEN
+    DRAWMENU("","Pág. 2","","","Ayuda","Salir");
+  ELSE
+    DRAWMENU("Pág. 1","","","","Ayuda","Salir");
+  END;
+END;
+
+// Abre el modulo del cuadro elegido.
+IngModulo(nPag,nSel)
+BEGIN
+  LOCAL nAux;
+  IF nPag==1 THEN
+    IF nSel==1 THEN MdGraficos(); END;
+    IF nSel==2 THEN MdDerivadas(); END;
+    IF nSel==3 THEN MdIntegrales(); END;
+    IF nSel==4 THEN MdLimites(); END;
+    IF nSel==5 THEN MdEcuaciones(); END;
+    IF nSel==6 THEN nAux:=MdPolinomios(); END;
+    IF nSel==7 THEN MdEdo(); END;
+    IF nSel==8 THEN MdLaplace(); END;
+    IF nSel==9 THEN MdMatrices(); END;
+    IF nSel==10 THEN MdProba(); END;
+    IF nSel==11 THEN MdCoord(); END;
+    IF nSel==12 THEN MdCampos(); END;
+  ELSE
+    IF nSel==1 THEN MdFormulas(); END;
+    IF nSel==2 THEN MdIteracion(); END;
+    IF nSel==3 THEN MdUnidades(); END;
+    IF nSel==4 THEN MdConstantes(); END;
+    IF nSel==5 THEN MdInterp(); END;
+    IF nSel==6 THEN MdMasaMolar(); END;
+    IF nSel==7 THEN FmCategoria(9); END;
+    IF nSel==8 THEN FmCategoria(8); END;
+    IF nSel==9 THEN MdAlgebra(); END;
+    IF nSel==10 THEN MdDatos(); END;
+    IF nSel==11 THEN MdAbreApp({"Spreadsheet","Hoja de cálculo"},2); END;
+    IF nSel==12 THEN MdAyuda(); END;
+  END;
+END;
+
+// Abre el modulo con una red de seguridad: si algo falla adentro,
+// se avisa y se vuelve al menu en lugar de cortar el programa.
+// Con el modo diagnostico (boton Diagn. de la Ayuda) el error se
+// muestra tal cual, con su numero de renglon.
+IngAbre(nPag,nSel)
+BEGIN
+  LOCAL nMal;
+  IF gDepura==1 THEN
+    IngModulo(nPag,nSel);
+  ELSE
+    nMal:=0;
+    IFERR
+      IngModulo(nPag,nSel);
+    THEN
+      nMal:=1;
+    END;
+    IF nMal THEN
+      gBad:=0;
+      UiAviso("Este cálculo no se pudo completar. Revisar los datos y probar de nuevo. Si se repite: entrar a Ayuda, tocar Diagn. y repetirlo para ver el detalle del error.");
+    END;
+  END;
+END;
+
+EXPORT ING()
+BEGIN
+  LOCAL lEvt,nSel,nPag,nCol,nFil,nSof,nTec;
+  IngIni();
+  nPag:=1;
+  REPEAT
+    IngPortada(nPag);
+    lEvt:=UiEspera();
+    nSel:=0;
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=29 AND lEvt(2)>=4 THEN
+          nCol:=IP((lEvt(2)-4)/79);
+          nFil:=IP((lEvt(3)-29)/63);
+          IF nCol<=3 AND nFil<=2 THEN nSel:=nFil*4+nCol+1; END;
+        END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 THEN nSof:=6; END;
+    IF nTec==3 THEN nSof:=5; END;
+    IF nTec==8 OR nTec==12 THEN nSof:=2; END;
+    IF nTec==7 OR nTec==2 THEN nSof:=1; END;
+    IF nSof==1 THEN nPag:=1; END;
+    IF nSof==2 THEN nPag:=2; END;
+    IF nSof==5 THEN IngAbre(2,12); END;
+    IF nSof==6 THEN gSale:=1; END;
+    IF nSel>0 THEN IngAbre(nPag,nSel); END;
+  UNTIL gSale;
+END;

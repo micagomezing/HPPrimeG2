@@ -1,0 +1,10 @@
+#pragma mode( separator(.,;) integer(h32) )
+// Tecla de usuario para abrir ING con una sola tecla.
+// Crear un programa aparte llamado INGTECLA, pegar esto y Comprobar.
+// SIN PROBAR en la calculadora. Si da error, borrar este programa:
+// ING no depende de el.
+KEY K_Help()
+BEGIN
+  ING();
+  RETURN -1;
+END;

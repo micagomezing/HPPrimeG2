@@ -1,0 +1,548 @@
+
+// ---------- Biblioteca de formulas ----------
+// Cada formula es un texto:  Nombre|ecuacion|var:descripcion;var:descripcion
+// Para agregar formulas fijas alcanza con sumar renglones aca.
+// Las propias se cargan desde la calculadora (Mis formulas).
+
+FmCats()
+BEGIN
+  RETURN {"Mis fórmulas","Termodinámica y gases","Cinética y reactores","Mecánica de fluidos","Transferencia de calor","Transferencia de masa y separación","Química y soluciones","Nuclear","Números adimensionales","Control de procesos"};
+END;
+
+FmDatos(nCat)
+BEGIN
+  IF nCat==2 THEN RETURN {
+"Gas ideal|p*v=n*r*t|p:Presión;v:Volumen;n:Moles;r:Constante R (en las mismas unidades);t:Temperatura absoluta [K]",
+"Densidad de un gas ideal|rho=p*mm/(r*t)|rho:Densidad;p:Presión;mm:Masa molar;r:Constante R;t:Temperatura absoluta [K]",
+"Van der Waals|(p+a*n^2/v^2)*(v-n*b)=n*r*t|p:Presión;a:Constante a;n:Moles;v:Volumen;b:Constante b;r:Constante R;t:Temperatura absoluta [K]",
+"Factor de compresibilidad|z=p*v/(n*r*t)|z:Factor de compresibilidad;p:Presión;v:Volumen;n:Moles;r:Constante R;t:Temperatura absoluta [K]",
+"Ley combinada de los gases|p1*v1/t1=p2*v2/t2|p1:Presión inicial;v1:Volumen inicial;t1:Temperatura inicial [K];p2:Presión final;v2:Volumen final;t2:Temperatura final [K]",
+"Calor sensible|q=m*cp*(t2-t1)|q:Calor [J];m:Masa [kg];cp:Calor específico [J/(kg.K)];t2:Temperatura final;t1:Temperatura inicial",
+"Calor latente|q=m*lv|q:Calor [J];m:Masa [kg];lv:Calor latente [J/kg]",
+"Trabajo isotérmico de un gas ideal|w=n*r*t*ln(v2/v1)|w:Trabajo hecho por el gas [J];n:Moles;r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];v2:Volumen final;v1:Volumen inicial",
+"Adiabático: presión y volumen|p1*v1^k=p2*v2^k|p1:Presión inicial;v1:Volumen inicial;k:Exponente adiabático cp/cv;p2:Presión final;v2:Volumen final",
+"Adiabático: temperatura y presión|t2=t1*(p2/p1)^((k-1)/k)|t2:Temperatura final [K];t1:Temperatura inicial [K];p2:Presión final;p1:Presión inicial;k:Exponente adiabático cp/cv",
+"Eficiencia de Carnot|eta=1-tf/tc|eta:Eficiencia (de 0 a 1);tf:Temperatura de la fuente fría [K];tc:Temperatura de la fuente caliente [K]",
+"Clausius-Clapeyron|ln(p2/p1)=-dh/r*(1/t2-1/t1)|p2:Presión de vapor a t2;p1:Presión de vapor a t1;dh:Entalpía de vaporización [J/mol];r:Constante R [8.314 J/(mol.K)];t2:Temperatura 2 [K];t1:Temperatura 1 [K]",
+"Antoine (logaritmo en base 10)|log(p)=a-b/(t+c)|p:Presión de vapor;a:Constante A;b:Constante B;t:Temperatura;c:Constante C",
+"Energía libre de Gibbs|dg=dh-t*ds|dg:Cambio de energía libre;dh:Cambio de entalpía;t:Temperatura [K];ds:Cambio de entropía",
+"Gibbs y constante de equilibrio|dg=-r*t*ln(k)|dg:Energía libre estándar [J/mol];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];k:Constante de equilibrio",
+"Cambio de entropía de un gas ideal|ds=n*cp*ln(t2/t1)-n*r*ln(p2/p1)|ds:Cambio de entropía [J/K];n:Moles;cp:Calor específico molar [J/(mol.K)];t2:Temperatura final [K];t1:Temperatura inicial [K];r:Constante R;p2:Presión final;p1:Presión inicial",
+"Primera ley (sistema cerrado)|du=q-w|du:Cambio de energía interna;q:Calor que entra al sistema;w:Trabajo hecho por el sistema",
+"Entalpía|h=u+p*v|h:Entalpía;u:Energía interna;p:Presión;v:Volumen",
+"Ley de Raoult|p=x*psat|p:Presión parcial;x:Fracción molar en el líquido;psat:Presión de vapor del componente puro",
+"Ley de Henry|p=kh*x|p:Presión parcial;kh:Constante de Henry;x:Fracción molar en el líquido"}; END;
+  IF nCat==3 THEN RETURN {
+"Arrhenius|k=a*exp(-ea/(r*t))|k:Constante de velocidad;a:Factor preexponencial;ea:Energía de activación [J/mol];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K]",
+"Arrhenius con dos temperaturas|ln(k2/k1)=ea/r*(1/t1-1/t2)|k2:Constante de velocidad a t2;k1:Constante de velocidad a t1;ea:Energía de activación [J/mol];r:Constante R [8.314 J/(mol.K)];t1:Temperatura 1 [K];t2:Temperatura 2 [K]",
+"Orden 0: concentración|c=c0-k*t|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Orden 1: concentración|c=c0*exp(-k*t)|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Orden 2: concentración|1/c=1/c0+k*t|c:Concentración en el tiempo t;c0:Concentración inicial;k:Constante de velocidad;t:Tiempo",
+"Vida media (orden 1)|th=ln(2)/k|th:Vida media;k:Constante de velocidad",
+"Conversión|x=(c0-c)/c0|x:Conversión (de 0 a 1);c0:Concentración inicial;c:Concentración final",
+"Reactor batch, orden 1|t=-ln(1-x)/k|t:Tiempo de reacción;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"CSTR, orden 1|tau=x/(k*(1-x))|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"PFR, orden 1|tau=-ln(1-x)/k|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad",
+"CSTR, orden 2|tau=x/(k*c0*(1-x)^2)|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad;c0:Concentración de entrada",
+"PFR, orden 2|tau=x/(k*c0*(1-x))|tau:Tiempo espacial;x:Conversión (de 0 a 1);k:Constante de velocidad;c0:Concentración de entrada",
+"Volumen de un CSTR|v=fa0*x/ra|v:Volumen del reactor;fa0:Caudal molar de A a la entrada;x:Conversión (de 0 a 1);ra:Velocidad de reacción a la salida (positiva)",
+"Tiempo espacial|tau=v/q|tau:Tiempo espacial;v:Volumen del reactor;q:Caudal volumétrico",
+"Número de Damköhler (orden 1)|da=k*tau|da:Número de Damköhler;k:Constante de velocidad;tau:Tiempo espacial",
+"Van't Hoff|ln(k2/k1)=-dh/r*(1/t2-1/t1)|k2:Constante de equilibrio a t2;k1:Constante de equilibrio a t1;dh:Entalpía de reacción [J/mol];r:Constante R [8.314 J/(mol.K)];t2:Temperatura 2 [K];t1:Temperatura 1 [K]"}; END;
+  IF nCat==4 THEN RETURN {
+"Número de Reynolds|re=rho*v*d/mu|re:Número de Reynolds;rho:Densidad [kg/m³];v:Velocidad [m/s];d:Diámetro [m];mu:Viscosidad dinámica [Pa.s]",
+"Continuidad|a1*v1=a2*v2|a1:Área de la sección 1;v1:Velocidad en la sección 1;a2:Área de la sección 2;v2:Velocidad en la sección 2",
+"Caudal en una tubería|q=v*pi*d^2/4|q:Caudal [m³/s];v:Velocidad media [m/s];d:Diámetro interno [m]",
+"Bernoulli con pérdidas|p1/(rho*g)+v1^2/(2*g)+z1=p2/(rho*g)+v2^2/(2*g)+z2+hf|p1:Presión en 1 [Pa];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];v1:Velocidad en 1 [m/s];z1:Altura en 1 [m];p2:Presión en 2 [Pa];v2:Velocidad en 2 [m/s];z2:Altura en 2 [m];hf:Pérdida de carga [m]",
+"Darcy-Weisbach|hf=f*(l/d)*v^2/(2*g)|hf:Pérdida de carga [m];f:Factor de fricción de Darcy;l:Longitud [m];d:Diámetro [m];v:Velocidad [m/s];g:Gravedad [9.80665 m/s²]",
+"Factor de fricción laminar|f=64/re|f:Factor de fricción de Darcy;re:Número de Reynolds (menor que 2100)",
+"Colebrook|1/sqrt(f)=-2*log(rr/3.7+2.51/(re*sqrt(f)))|f:Factor de fricción de Darcy;rr:Rugosidad relativa (rugosidad / diámetro);re:Número de Reynolds",
+"Swamee-Jain|f=0.25/(log(rr/3.7+5.74/re^0.9))^2|f:Factor de fricción de Darcy;rr:Rugosidad relativa (rugosidad / diámetro);re:Número de Reynolds",
+"Potencia de una bomba|pot=rho*g*q*h/eta|pot:Potencia [W];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];q:Caudal [m³/s];h:Altura de la bomba [m];eta:Eficiencia (de 0 a 1)",
+"Hagen-Poiseuille|dp=32*mu*l*v/d^2|dp:Caída de presión [Pa];mu:Viscosidad dinámica [Pa.s];l:Longitud [m];v:Velocidad media [m/s];d:Diámetro [m]",
+"Velocidad terminal (Stokes)|v=g*d^2*(rhop-rho)/(18*mu)|v:Velocidad terminal [m/s];g:Gravedad [9.80665 m/s²];d:Diámetro de la partícula [m];rhop:Densidad de la partícula [kg/m³];rho:Densidad del fluido [kg/m³];mu:Viscosidad dinámica [Pa.s]",
+"Presión hidrostática|p=p0+rho*g*h|p:Presión a la profundidad h [Pa];p0:Presión en la superficie [Pa];rho:Densidad [kg/m³];g:Gravedad [9.80665 m/s²];h:Profundidad [m]",
+"Pérdida en accesorios|hf=k*v^2/(2*g)|hf:Pérdida de carga [m];k:Coeficiente del accesorio;v:Velocidad [m/s];g:Gravedad [9.80665 m/s²]",
+"Torricelli|v=sqrt(2*g*h)|v:Velocidad de salida [m/s];g:Gravedad [9.80665 m/s²];h:Altura de líquido [m]",
+"Placa orificio|q=cd*a*sqrt(2*dp/(rho*(1-beta^4)))|q:Caudal [m³/s];cd:Coeficiente de descarga;a:Área del orificio [m²];dp:Caída de presión [Pa];rho:Densidad [kg/m³];beta:Relación de diámetros (orificio / tubería)"}; END;
+  IF nCat==5 THEN RETURN {
+"Conducción en pared plana|q=k*a*(t1-t2)/l|q:Calor por unidad de tiempo [W];k:Conductividad térmica [W/(m.K)];a:Área [m²];t1:Temperatura de la cara caliente;t2:Temperatura de la cara fría;l:Espesor [m]",
+"Conducción en pared cilíndrica|q=2*pi*k*l*(t1-t2)/ln(r2/r1)|q:Calor por unidad de tiempo [W];k:Conductividad térmica [W/(m.K)];l:Longitud del cilindro [m];t1:Temperatura interior;t2:Temperatura exterior;r2:Radio exterior;r1:Radio interior",
+"Convección (ley de Newton)|q=h*a*(ts-tf)|q:Calor por unidad de tiempo [W];h:Coeficiente de convección [W/(m².K)];a:Área [m²];ts:Temperatura de la superficie;tf:Temperatura del fluido",
+"Radiación de una superficie a su entorno|q=eps*5.670374e-8*a*(t1^4-t2^4)|q:Calor por unidad de tiempo [W];eps:Emisividad (de 0 a 1);a:Área [m²];t1:Temperatura de la superficie [K];t2:Temperatura del entorno [K]",
+"Diferencia media logarítmica|dtml=(dt1-dt2)/ln(dt1/dt2)|dtml:Diferencia media logarítmica;dt1:Diferencia de temperatura en un extremo;dt2:Diferencia de temperatura en el otro extremo",
+"Intercambiador de calor|q=u*a*dtml|q:Calor por unidad de tiempo [W];u:Coeficiente global [W/(m².K)];a:Área de intercambio [m²];dtml:Diferencia media logarítmica",
+"Coeficiente global (pared plana)|1/u=1/h1+l/k+1/h2|u:Coeficiente global [W/(m².K)];h1:Convección del lado 1 [W/(m².K)];l:Espesor de la pared [m];k:Conductividad de la pared [W/(m.K)];h2:Convección del lado 2 [W/(m².K)]",
+"Dittus-Boelter|nu=0.023*re^0.8*pr^n|nu:Número de Nusselt;re:Número de Reynolds;pr:Número de Prandtl;n:0.4 si el fluido se calienta, 0.3 si se enfría",
+"Difusividad térmica|alfa=k/(rho*cp)|alfa:Difusividad térmica [m²/s];k:Conductividad térmica [W/(m.K)];rho:Densidad [kg/m³];cp:Calor específico [J/(kg.K)]",
+"Resistencia térmica de conducción|rt=l/(k*a)|rt:Resistencia térmica [K/W];l:Espesor [m];k:Conductividad térmica [W/(m.K)];a:Área [m²]",
+"Resistencia térmica de convección|rt=1/(h*a)|rt:Resistencia térmica [K/W];h:Coeficiente de convección [W/(m².K)];a:Área [m²]",
+"Radio crítico de aislación (cilindro)|rc=k/h|rc:Radio crítico [m];k:Conductividad de la aislación [W/(m.K)];h:Coeficiente de convección exterior [W/(m².K)]",
+"Enfriamiento de un cuerpo (sistema concentrado)|(t-tinf)/(t0-tinf)=exp(-h*a*tt/(rho*v*cp))|t:Temperatura en el tiempo tt;tinf:Temperatura del fluido;t0:Temperatura inicial;h:Coeficiente de convección [W/(m².K)];a:Área [m²];tt:Tiempo [s];rho:Densidad [kg/m³];v:Volumen [m³];cp:Calor específico [J/(kg.K)]"}; END;
+  IF nCat==6 THEN RETURN {
+"Ley de Fick|j=d*(c1-c2)/l|j:Flujo difusivo [mol/(m².s)];d:Difusividad [m²/s];c1:Concentración en el lado 1 [mol/m³];c2:Concentración en el lado 2 [mol/m³];l:Espesor [m]",
+"Transferencia de masa por convección|na=kc*(c1-c2)|na:Flujo molar [mol/(m².s)];kc:Coeficiente de transferencia de masa [m/s];c1:Concentración en la superficie;c2:Concentración en el seno del fluido",
+"Equilibrio con volatilidad relativa|y=alfa*x/(1+(alfa-1)*x)|y:Fracción molar en el vapor;alfa:Volatilidad relativa;x:Fracción molar en el líquido",
+"Fenske (etapas mínimas)|nmin=ln((xd/(1-xd))*((1-xb)/xb))/ln(alfa)|nmin:Número mínimo de etapas;xd:Fracción molar en el destilado;xb:Fracción molar en el fondo;alfa:Volatilidad relativa",
+"Reflujo mínimo (alimentación en su punto de burbuja)|rmin=(xd-ye)/(ye-xe)|rmin:Relación de reflujo mínima;xd:Fracción molar en el destilado;ye:Vapor en equilibrio con la alimentación;xe:Fracción molar de la alimentación",
+"Balance global de una columna|f=d+b|f:Alimentación;d:Destilado;b:Fondo",
+"Balance del componente liviano|f*zf=d*xd+b*xb|f:Alimentación;zf:Fracción molar en la alimentación;d:Destilado;xd:Fracción molar en el destilado;b:Fondo;xb:Fracción molar en el fondo",
+"Línea de operación de rectificación|y=r/(r+1)*x+xd/(r+1)|y:Fracción molar en el vapor;r:Relación de reflujo;x:Fracción molar en el líquido;xd:Fracción molar en el destilado",
+"Destilación diferencial (Rayleigh)|ln(f/w)=1/(alfa-1)*ln(xf*(1-xw)/(xw*(1-xf)))+ln((1-xw)/(1-xf))|f:Moles iniciales;w:Moles que quedan;alfa:Volatilidad relativa;xf:Fracción molar inicial;xw:Fracción molar final en el líquido",
+"Ley de Dalton|pa=y*p|pa:Presión parcial;y:Fracción molar en el gas;p:Presión total",
+"Raoult modificada|y*p=x*gam*psat|y:Fracción molar en el vapor;p:Presión total;x:Fracción molar en el líquido;gam:Coeficiente de actividad;psat:Presión de vapor del componente puro",
+"Humedad absoluta del aire|w=0.622*pv/(p-pv)|w:Humedad absoluta [kg de agua / kg de aire seco];pv:Presión parcial del vapor de agua;p:Presión total"}; END;
+  IF nCat==7 THEN RETURN {
+"Moles a partir de la masa|n=m/mm|n:Moles;m:Masa [g];mm:Masa molar [g/mol]",
+"Molaridad|c=n/v|c:Concentración [mol/L];n:Moles;v:Volumen de solución [L]",
+"Dilución|c1*v1=c2*v2|c1:Concentración inicial;v1:Volumen inicial;c2:Concentración final;v2:Volumen final",
+"pH|ph=-log(h)|ph:pH;h:Concentración de H+ [mol/L]",
+"Ácido débil|ka=h^2/(c-h)|ka:Constante de acidez;h:Concentración de H+ [mol/L];c:Concentración inicial del ácido [mol/L]",
+"Henderson-Hasselbalch|ph=pka+log(a/ha)|ph:pH;pka:pKa del ácido;a:Concentración de la base conjugada;ha:Concentración del ácido",
+"Ecuación de Nernst|pot=pot0-r*t/(n*f)*ln(q)|pot:Potencial de la celda [V];pot0:Potencial estándar [V];r:Constante R [8.314 J/(mol.K)];t:Temperatura [K];n:Electrones transferidos;f:Constante de Faraday [96485 C/mol];q:Cociente de reacción",
+"Ley de Faraday (electrólisis)|m=ic*t*mm/(n*f)|m:Masa depositada [g];ic:Corriente [A];t:Tiempo [s];mm:Masa molar [g/mol];n:Electrones por ion;f:Constante de Faraday [96485 C/mol]",
+"Presión osmótica|po=c*r*t|po:Presión osmótica;c:Concentración molar;r:Constante R (en las mismas unidades);t:Temperatura [K]",
+"Descenso crioscópico o ascenso ebulloscópico|dt=kk*mb*iv|dt:Cambio de temperatura;kk:Constante crioscópica o ebulloscópica;mb:Molalidad [mol/kg];iv:Factor de van't Hoff",
+"Beer-Lambert|ab=eps*l*c|ab:Absorbancia;eps:Absortividad molar [L/(mol.cm)];l:Camino óptico [cm];c:Concentración [mol/L]",
+"Fracción molar (dos componentes)|x1=n1/(n1+n2)|x1:Fracción molar del componente 1;n1:Moles del componente 1;n2:Moles del componente 2",
+"Rendimiento|rend=real/teor*100|rend:Rendimiento [%];real:Cantidad obtenida;teor:Cantidad teórica"}; END;
+  IF nCat==8 THEN RETURN {
+"Decaimiento radiactivo|n=n0*exp(-lam*t)|n:Núcleos en el tiempo t;n0:Núcleos iniciales;lam:Constante de decaimiento [1/s];t:Tiempo [s]",
+"Actividad|a=lam*n|a:Actividad [Bq];lam:Constante de decaimiento [1/s];n:Cantidad de núcleos",
+"Actividad en el tiempo|a=a0*exp(-lam*t)|a:Actividad en el tiempo t;a0:Actividad inicial;lam:Constante de decaimiento;t:Tiempo",
+"Actividad con la vida media|a=a0*0.5^(t/th)|a:Actividad en el tiempo t;a0:Actividad inicial;t:Tiempo;th:Vida media (misma unidad que t)",
+"Vida media|th=ln(2)/lam|th:Vida media;lam:Constante de decaimiento",
+"Vida promedio|tm=1/lam|tm:Vida promedio;lam:Constante de decaimiento",
+"Núcleos en una masa|n=m*6.02214076e23/mm|n:Cantidad de núcleos;m:Masa [g];mm:Masa molar [g/mol]",
+"Actividad de una masa|a=ln(2)/th*m*6.02214076e23/mm|a:Actividad [Bq];th:Vida media [s];m:Masa [g];mm:Masa molar [g/mol]",
+"Activación neutrónica|a=nn*sig*phi*(1-exp(-lam*t))|a:Actividad [Bq];nn:Cantidad de núcleos blanco;sig:Sección eficaz microscópica [cm²];phi:Flujo neutrónico [n/(cm².s)];lam:Constante de decaimiento [1/s];t:Tiempo de irradiación [s]",
+"Atenuación en un blindaje|phi=phi0*exp(-mu*x)|phi:Intensidad detrás del blindaje;phi0:Intensidad incidente;mu:Coeficiente de atenuación lineal [1/cm];x:Espesor [cm]",
+"Atenuación con factor de acumulación|phi=bu*phi0*exp(-mu*x)|phi:Intensidad detrás del blindaje;bu:Factor de acumulación (buildup);phi0:Intensidad incidente;mu:Coeficiente de atenuación lineal [1/cm];x:Espesor [cm]",
+"Capa hemirreductora|hvl=ln(2)/mu|hvl:Espesor que reduce a la mitad;mu:Coeficiente de atenuación lineal",
+"Capa decirreductora|tvl=ln(10)/mu|tvl:Espesor que reduce a la décima parte;mu:Coeficiente de atenuación lineal",
+"Ley del inverso del cuadrado|d2=d1*(r1/r2)^2|d2:Tasa de dosis a la distancia r2;d1:Tasa de dosis a la distancia r1;r1:Distancia 1;r2:Distancia 2",
+"Tasa de dosis de una fuente puntual|dr=gam*a/r^2|dr:Tasa de dosis;gam:Constante gamma específica del nucleido;a:Actividad;r:Distancia a la fuente",
+"Densidad atómica|nd=rho*6.02214076e23/mm|nd:Densidad atómica [átomos/cm³];rho:Densidad [g/cm³];mm:Masa molar [g/mol]",
+"Sección eficaz macroscópica|sigm=nd*sig|sigm:Sección macroscópica [1/cm];nd:Densidad atómica [átomos/cm³];sig:Sección microscópica [cm²]",
+"Camino libre medio|lcm=1/sigm|lcm:Camino libre medio [cm];sigm:Sección macroscópica [1/cm]",
+"Tasa de reacción|rx=phi*sigm|rx:Reacciones por cm³ y por segundo;phi:Flujo neutrónico [n/(cm².s)];sigm:Sección macroscópica [1/cm]",
+"Potencia térmica de un reactor|pot=ef*sigf*phi*vol|pot:Potencia [W];ef:Energía por fisión [J] (unos 3.2E-11);sigf:Sección macroscópica de fisión [1/cm];phi:Flujo neutrónico medio [n/(cm².s)];vol:Volumen del núcleo [cm³]",
+"Fórmula de los cuatro factores|kinf=eta*eps*pe*f|kinf:Factor de multiplicación infinito;eta:Factor de reproducción;eps:Factor de fisión rápida;pe:Probabilidad de escape a las resonancias;f:Factor de utilización térmica",
+"Factor de multiplicación efectivo|keff=kinf*pf*pt|keff:Factor de multiplicación efectivo;kinf:Factor de multiplicación infinito;pf:Probabilidad de no fuga rápida;pt:Probabilidad de no fuga térmica",
+"k efectivo con un grupo de energía|keff=kinf/(1+l2*bg2)|keff:Factor de multiplicación efectivo;kinf:Factor de multiplicación infinito;l2:Área de difusión [cm²];bg2:Buckling geométrico [1/cm²]",
+"Reactividad|rho=(k-1)/k|rho:Reactividad;k:Factor de multiplicación efectivo",
+"Longitud de difusión|ld=sqrt(dc/siga)|ld:Longitud de difusión [cm];dc:Coeficiente de difusión [cm];siga:Sección macroscópica de absorción [1/cm]",
+"Buckling de una esfera|bg2=(pi/r)^2|bg2:Buckling geométrico;r:Radio (incluida la distancia extrapolada)",
+"Buckling de un cilindro|bg2=(2.405/r)^2+(pi/h)^2|bg2:Buckling geométrico;r:Radio (incluida la distancia extrapolada);h:Altura (incluida la distancia extrapolada)",
+"Buckling de una placa|bg2=(pi/a)^2|bg2:Buckling geométrico;a:Espesor (incluida la distancia extrapolada)",
+"Período estable del reactor|tp=(beta-rho)/(lam*rho)|tp:Período [s];beta:Fracción de neutrones retardados;rho:Reactividad (positiva y menor que beta);lam:Constante de decaimiento de los precursores [1/s]",
+"Defecto de masa a energía|en=dm*931.494|en:Energía [MeV];dm:Defecto de masa [u]",
+"Energía de enlace|be=(z*1.007825+(a-z)*1.008665-m)*931.494|be:Energía de enlace [MeV];z:Número de protones;a:Número másico;m:Masa atómica [u]",
+"Energía mínima tras un choque elástico|emin=e0*((a-1)/(a+1))^2|emin:Energía mínima del neutrón después del choque;e0:Energía antes del choque;a:Número másico del núcleo"}; END;
+  IF nCat==9 THEN RETURN {
+"Reynolds|re=rho*v*l/mu|re:Número de Reynolds;rho:Densidad [kg/m³];v:Velocidad [m/s];l:Longitud característica [m];mu:Viscosidad dinámica [Pa.s]",
+"Prandtl|pr=cp*mu/k|pr:Número de Prandtl;cp:Calor específico [J/(kg.K)];mu:Viscosidad dinámica [Pa.s];k:Conductividad térmica [W/(m.K)]",
+"Nusselt|nu=h*l/k|nu:Número de Nusselt;h:Coeficiente de convección [W/(m².K)];l:Longitud característica [m];k:Conductividad del fluido [W/(m.K)]",
+"Schmidt|sc=mu/(rho*d)|sc:Número de Schmidt;mu:Viscosidad dinámica [Pa.s];rho:Densidad [kg/m³];d:Difusividad [m²/s]",
+"Sherwood|sh=kc*l/d|sh:Número de Sherwood;kc:Coeficiente de transferencia de masa [m/s];l:Longitud característica [m];d:Difusividad [m²/s]",
+"Péclet (calor)|pe=v*l/alfa|pe:Número de Péclet;v:Velocidad [m/s];l:Longitud característica [m];alfa:Difusividad térmica [m²/s]",
+"Grashof|gr=g*beta*(ts-tf)*l^3/vis^2|gr:Número de Grashof;g:Gravedad [9.80665 m/s²];beta:Coeficiente de expansión térmica [1/K];ts:Temperatura de la superficie;tf:Temperatura del fluido;l:Longitud característica [m];vis:Viscosidad cinemática [m²/s]",
+"Rayleigh|ra=gr*pr|ra:Número de Rayleigh;gr:Número de Grashof;pr:Número de Prandtl",
+"Biot|bi=h*l/k|bi:Número de Biot;h:Coeficiente de convección [W/(m².K)];l:Longitud característica [m];k:Conductividad del sólido [W/(m.K)]",
+"Fourier|fo=alfa*t/l^2|fo:Número de Fourier;alfa:Difusividad térmica [m²/s];t:Tiempo [s];l:Longitud característica [m]",
+"Lewis|le=alfa/d|le:Número de Lewis;alfa:Difusividad térmica [m²/s];d:Difusividad de masa [m²/s]",
+"Stanton|st=h/(rho*v*cp)|st:Número de Stanton;h:Coeficiente de convección [W/(m².K)];rho:Densidad [kg/m³];v:Velocidad [m/s];cp:Calor específico [J/(kg.K)]",
+"Weber|we=rho*v^2*l/sig|we:Número de Weber;rho:Densidad [kg/m³];v:Velocidad [m/s];l:Longitud característica [m];sig:Tensión superficial [N/m]",
+"Froude|fr=v/sqrt(g*l)|fr:Número de Froude;v:Velocidad [m/s];g:Gravedad [9.80665 m/s²];l:Longitud característica [m]",
+"Mach|ma=v/c|ma:Número de Mach;v:Velocidad;c:Velocidad del sonido",
+"Euler|eu=dp/(rho*v^2)|eu:Número de Euler;dp:Caída de presión [Pa];rho:Densidad [kg/m³];v:Velocidad [m/s]"}; END;
+  IF nCat==10 THEN RETURN {
+"Respuesta de primer orden a un escalón|y=kp*am*(1-exp(-t/tau))|y:Salida en el tiempo t;kp:Ganancia del proceso;am:Amplitud del escalón;t:Tiempo;tau:Constante de tiempo",
+"Sobrepaso (segundo orden)|os=exp(-pi*z/sqrt(1-z^2))|os:Sobrepaso (fracción del valor final);z:Factor de amortiguamiento (menor que 1)",
+"Razón de decaimiento|dr=exp(-2*pi*z/sqrt(1-z^2))|dr:Razón de decaimiento;z:Factor de amortiguamiento (menor que 1)",
+"Tiempo de pico|tp=pi/(wn*sqrt(1-z^2))|tp:Tiempo de pico;wn:Frecuencia natural [rad/tiempo];z:Factor de amortiguamiento (menor que 1)",
+"Tiempo de asentamiento (2 %)|ts=4/(z*wn)|ts:Tiempo de asentamiento;z:Factor de amortiguamiento;wn:Frecuencia natural [rad/tiempo]",
+"Frecuencia amortiguada|wd=wn*sqrt(1-z^2)|wd:Frecuencia amortiguada;wn:Frecuencia natural;z:Factor de amortiguamiento (menor que 1)",
+"Período de oscilación|per=2*pi/(wn*sqrt(1-z^2))|per:Período de oscilación;wn:Frecuencia natural [rad/tiempo];z:Factor de amortiguamiento (menor que 1)"}; END;
+  RETURN gMias;
+END;
+
+// Guarda una variable de trabajo (A a N) para las formulas.
+FmPon(nIdx,nVal)
+BEGIN
+  IF nIdx==1 THEN A:=nVal; END;
+  IF nIdx==2 THEN B:=nVal; END;
+  IF nIdx==3 THEN C:=nVal; END;
+  IF nIdx==4 THEN D:=nVal; END;
+  IF nIdx==5 THEN F:=nVal; END;
+  IF nIdx==6 THEN G:=nVal; END;
+  IF nIdx==7 THEN H:=nVal; END;
+  IF nIdx==8 THEN J:=nVal; END;
+  IF nIdx==9 THEN K:=nVal; END;
+  IF nIdx==10 THEN L:=nVal; END;
+  IF nIdx==11 THEN M:=nVal; END;
+  IF nIdx==12 THEN N:=nVal; END;
+END;
+
+// Usa una formula: se elige la incognita, se cargan los datos y resuelve.
+FmUsar(sReg)
+BEGIN
+  LOCAL lPar,sNom,sEcu,sDes,lVar,lDes,lTmp,nIdx;
+  LOCAL lUno,nPos,nCnt,nInc,lVal,lLab,lAyu,lIni;
+  LOCAL lDat,lDst,lLet,nKk,nSol,lLin,nBot,lGui;
+  LOCAL lOpc,nSem,nFin,sAux,lSol;
+  lPar:=UiPartir(sReg,"|");
+  IF SIZE(lPar)<2 THEN RETURN 0; END;
+  sNom:=lPar(1);
+  sEcu:=lPar(2);
+  sDes:="";
+  IF SIZE(lPar)>=3 THEN sDes:=lPar(3); END;
+  lVar:=ExVars(sEcu);
+  nCnt:=SIZE(lVar);
+  IF nCnt<1 OR nCnt>13 THEN
+    UiAviso("La fórmula debe tener entre 1 y 13 variables.");
+    RETURN 0;
+  END;
+  // descripcion de cada variable
+  lDes:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lDes:=CONCAT(lDes,{""});
+  END;
+  IF sDes<>"" THEN
+    lTmp:=UiPartir(sDes,";");
+    FOR nIdx FROM 1 TO SIZE(lTmp) DO
+      lUno:=UiPartir(lTmp(nIdx),":");
+      IF SIZE(lUno)>=2 THEN
+        nPos:=UiPos(lVar,ExMin(lUno(1)));
+        IF nPos>0 THEN lDes(nPos):=lUno(2); END;
+      END;
+    END;
+  END;
+  lVal:={};
+  lOpc:={};
+  FOR nIdx FROM 1 TO nCnt DO
+    lVal:=CONCAT(lVal,{0});
+    sAux:=lDes(nIdx);
+    IF sAux=="" THEN sAux:="Variable "+lVar(nIdx); END;
+    lOpc:=CONCAT(lOpc,{sAux});
+  END;
+  lLet:={"A","B","C","D","F","G","H","J","K","L","M","N"};
+  nFin:=0;
+  REPEAT
+    nInc:=UiMenu("Calcular: "+sNom,lOpc,lVar);
+    IF nInc==0 THEN
+      nFin:=1;
+    ELSE
+      lLab:={};
+      lAyu:={};
+      lIni:={};
+      FOR nIdx FROM 1 TO nCnt DO
+        IF nIdx<>nInc THEN
+          lLab:=CONCAT(lLab,{lVar(nIdx)+" = "});
+          lAyu:=CONCAT(lAyu,{lOpc(nIdx)});
+          lIni:=CONCAT(lIni,{lVal(nIdx)});
+        END;
+      END;
+      lDat:=UiPedir(sNom,lLab,lAyu,lIni,0);
+      IF SIZE(lDat)>0 THEN
+        // variables conocidas a A, B, C...  La incognita va a X.
+        lDst:={};
+        nKk:=0;
+        FOR nIdx FROM 1 TO nCnt DO
+          IF nIdx==nInc THEN
+            lDst:=CONCAT(lDst,{"X"});
+          ELSE
+            nKk:=nKk+1;
+            lDst:=CONCAT(lDst,{lLet(nKk)});
+            lVal(nIdx):=lDat(nKk);
+            FmPon(nKk,lDat(nKk));
+          END;
+        END;
+        IF ExPrep(sEcu,lVar,lDst) THEN
+          UiCalc(sNom);
+          nSem:=lVal(nInc);
+          IF nSem==0 THEN
+            nSem:=1;
+            // fracciones y eficiencias: se busca primero entre 0 y 1
+            IF UiEn(lOpc(nInc),"de 0 a 1")>0 OR UiEn(lOpc(nInc),"menor que 1")>0 OR UiEn(lOpc(nInc),"Fracción")>0 THEN
+              nSem:=0.5;
+            END;
+            // temperaturas absolutas y numeros de Reynolds
+            IF UiEn(lOpc(nInc),"[K]")>0 THEN nSem:=300; END;
+            IF UiEn(lOpc(nInc),"Reynolds")>0 THEN nSem:=10000; END;
+          END;
+          nBot:=1;
+          WHILE nBot==1 DO
+            lSol:=ExRaices(nSem);
+            IF SIZE(lSol)==0 THEN
+              UiAviso("No encontré solución con esos datos. Revisar los valores (y las unidades).");
+              nBot:=0;
+            ELSE
+              nSol:=lSol(1);
+              lVal(nInc):=nSol;
+              lLin:={"#Fórmula"," "+sEcu,"#Resultado","!"+lVar(nInc)+" = "+UiNum(nSol,10),"~"+lOpc(nInc)};
+              IF SIZE(lSol)>1 THEN
+                lLin:=CONCAT(lLin,{"#La ecuación tiene otras soluciones"});
+                FOR nIdx FROM 2 TO SIZE(lSol) DO
+                  lLin:=CONCAT(lLin,{" "+lVar(nInc)+" = "+UiNum(lSol(nIdx),10)});
+                END;
+                lLin:=CONCAT(lLin,{"~Elegir la que tenga sentido físico. El botón Otra toma como principal la más cercana a un valor que indiques."});
+              END;
+              lLin:=CONCAT(lLin,{"#Datos usados"});
+              FOR nIdx FROM 1 TO nCnt DO
+                IF nIdx<>nInc THEN
+                  lLin:=CONCAT(lLin,{" "+lVar(nIdx)+" = "+UiNum(lVal(nIdx),10)});
+                END;
+              END;
+              nBot:=UiTexto(sNom,lLin,{"Otra","",""});
+              IF nBot==1 THEN
+                lGui:=UiPedir("Buscar otra solución",{lVar(nInc)+" cerca de = "},{"Valor aproximado de la solución que se busca"},{nSol},0);
+                IF SIZE(lGui)>0 THEN
+                  nSem:=lGui(1);
+                  UiCalc(sNom);
+                ELSE
+                  nBot:=0;
+                END;
+              END;
+            END;
+          END;
+        END;
+      END;
+    END;
+  UNTIL nFin;
+  RETURN 1;
+END;
+
+IngGuarda()
+BEGIN
+  IFERR
+    HVars("INGF"):=gMias;
+  THEN
+    UiAviso("No se pudo guardar en la memoria permanente. Las fórmulas quedan hasta que se edite el programa.");
+  END;
+END;
+
+FmAgregar()
+BEGIN
+  LOCAL lDat,lVar,sNom,sEcu,sDes;
+  lDat:=UiPedir("Nueva fórmula",{"Nombre: ","Ecuación: ","Notas (opcional): "},{"Nombre para encontrarla después","Con signo = y multiplicando con *. Ej: e0=m*c^2","Opcional. Ej:  m:Masa [kg];v:Velocidad [m/s]"},{"","",""},1);
+  IF SIZE(lDat)==0 THEN RETURN 0; END;
+  sNom:=lDat(1);
+  sEcu:=lDat(2);
+  sDes:=lDat(3);
+  IF sNom=="" OR sEcu=="" THEN
+    UiAviso("Faltan el nombre o la ecuación.");
+    RETURN 0;
+  END;
+  IF UiEn(sNom,"|")>0 OR UiEn(sEcu,"|")>0 OR UiEn(sDes,"|")>0 THEN
+    UiAviso("No usar el símbolo | en los textos.");
+    RETURN 0;
+  END;
+  IF UiEn(sEcu,"=")==0 THEN
+    UiAviso("La ecuación necesita un signo = .");
+    RETURN 0;
+  END;
+  lVar:=ExVars(sEcu);
+  IF SIZE(lVar)<1 OR SIZE(lVar)>13 THEN
+    UiAviso("La ecuación debe tener entre 1 y 13 variables.");
+    RETURN 0;
+  END;
+  gMias:=CONCAT(gMias,{sNom+"|"+sEcu+"|"+sDes});
+  IngGuarda();
+  UiAviso("Fórmula guardada en Mis fórmulas.");
+  RETURN 1;
+END;
+
+FmBorrar()
+BEGIN
+  LOCAL lNom,nIdx,lPar,nSel,lNue;
+  IF SIZE(gMias)==0 THEN
+    UiAviso("Todavía no hay fórmulas propias.");
+    RETURN 0;
+  END;
+  lNom:={};
+  FOR nIdx FROM 1 TO SIZE(gMias) DO
+    lPar:=UiPartir(gMias(nIdx),"|");
+    lNom:=CONCAT(lNom,{lPar(1)});
+  END;
+  nSel:=UiMenu("¿Cuál borrar?",lNom,{});
+  IF nSel==0 THEN RETURN 0; END;
+  lNue:={};
+  FOR nIdx FROM 1 TO SIZE(gMias) DO
+    IF nIdx<>nSel THEN lNue:=CONCAT(lNue,{gMias(nIdx)}); END;
+  END;
+  gMias:=lNue;
+  IngGuarda();
+  RETURN 1;
+END;
+
+// Lista las formulas de una categoria y deja usar una.
+FmCategoria(nCat)
+BEGIN
+  LOCAL lReg,lNom,lSim,nIdx,lPar,nSel,nFin,lCat;
+  LOCAL nBase,nAux;
+  lCat:=FmCats();
+  nFin:=0;
+  REPEAT
+    lReg:=FmDatos(nCat);
+    lNom:={};
+    lSim:={};
+    nBase:=0;
+    IF nCat==1 THEN
+      lNom:={"Agregar una fórmula nueva","Borrar una fórmula"};
+      lSim:={"+","-"};
+      nBase:=2;
+    END;
+    FOR nIdx FROM 1 TO SIZE(lReg) DO
+      lPar:=UiPartir(lReg(nIdx),"|");
+      lNom:=CONCAT(lNom,{lPar(1)});
+      lSim:=CONCAT(lSim,{STRING(nIdx)});
+    END;
+    nSel:=UiMenu(lCat(nCat),lNom,lSim);
+    IF nSel==0 THEN
+      nFin:=1;
+    ELSE
+      IF nCat==1 AND nSel==1 THEN nAux:=FmAgregar(); END;
+      IF nCat==1 AND nSel==2 THEN nAux:=FmBorrar(); END;
+      IF nSel>nBase THEN nAux:=FmUsar(lReg(nSel-nBase)); END;
+    END;
+  UNTIL nFin;
+END;
+
+MdFormulas()
+BEGIN
+  LOCAL nCat,nFin;
+  nFin:=0;
+  REPEAT
+    nCat:=UiMenu("Fórmulas por materia",FmCats(),{"+","T","k","Re","q","y,x","pH","Bq","Nu","PID"});
+    IF nCat==0 THEN
+      nFin:=1;
+    ELSE
+      FmCategoria(nCat);
+    END;
+  UNTIL nFin;
+END;
+
+// ---------- Ayuda ----------
+
+// Prueba rapida de las funciones de la calculadora que usa el programa.
+// Sirve para ubicar un problema: cada renglon muestra lo que devolvio.
+MdPrueba()
+BEGIN
+  LOCAL lLin,vRes,sTxt,nMal,lTmp;
+  UiCalc("Prueba");
+  lLin:={"#CAS, primer método (debe dar 2*x)"};
+  vRes:="error";
+  IFERR
+    vRes:=CAS(EVAL("string(diff(x^2,x))"));
+  THEN
+    vRes:="error";
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+vRes,"#CAS, segundo método (debe dar 2*x)"});
+  vRes:="error";
+  IFERR
+    vRes:=CAS.expr("string(diff(x^2,x))");
+  THEN
+    vRes:="error";
+  END;
+  IF TYPE(vRes)<>2 THEN vRes:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+vRes,"#CAS completo: integral de x*exp(x)"," "+ExCas("int(x*exp(x),x)")});
+  lLin:=CONCAT(lLin,{"#Cálculo numérico: sqrt(16)+pi (debe dar 7.14159...)"});
+  vRes:=ExValor("sqrt(16)+pi");
+  IF gBad THEN
+    lLin:=CONCAT(lLin,{" error"});
+  ELSE
+    lLin:=CONCAT(lLin,{" "+STRING(vRes)});
+  END;
+  gBad:=0;
+  lLin:=CONCAT(lLin,{"#Formato de número: 1234.5678 se ve como"," "+STRING(1234.5678)});
+  lLin:=CONCAT(lLin,{"#Ángulo: 1 = radianes, 57.3 = grados"," "+STRING(gAng)});
+  lLin:=CONCAT(lLin,{"#Reloj interno (un número grande; -1 = no disponible)"," "+STRING(UiReloj())});
+  lLin:=CONCAT(lLin,{"#Normal acumulada en 1.96 (debe dar 0.975)"});
+  gBad:=0;
+  vRes:=PrCall("NORMALD_CDF(A,B,C)",0,1,1.96);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=STRING(vRes); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"#t de Student, chi cuadrado y F acumuladas"});
+  gBad:=0;
+  vRes:=PrCall("STUDENT_CDF(A,C)",10,0,1);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("CHISQUARE_CDF(A,C)",5,0,4);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("FISHER_CDF(A,B,C)",5,10,2);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar 0.82955   0.45058   0.83581","#Densidades t, chi cuadrado y F, y cuantil normal"});
+  gBad:=0;
+  vRes:=PrCall("STUDENT(A,C)",10,0,1);
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("CHISQUARE(A,C)",5,0,4);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("FISHER(A,B,C)",5,10,2);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  gBad:=0;
+  vRes:=PrCall("NORMALD_ICDF(A,B,C)",0,1,0.975);
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar 0.23036   0.14398   0.16201   1.96","#Matrices: determinante, rango y traza"});
+  gBad:=0;
+  vRes:=MtValor("DET([[1,2],[3,4]])");
+  IF gBad THEN sTxt:="error"; ELSE sTxt:=UiNum(vRes,5); END;
+  vRes:=MtValor("RANK([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  vRes:=MtValor("TRACE([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"   error"; ELSE sTxt:=sTxt+"   "+UiNum(vRes,5); END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Deben dar -2   2   5","#Transpuesta, inversa, autovalores y escalonada"});
+  sTxt:="";
+  vRes:=MtValor("TRN([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("[[1,2],[3,4]]^(-1)");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("EIGENVAL([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error  "; ELSE sTxt:=sTxt+"bien  "; END;
+  vRes:=MtValor("RREF([[1,2],[3,4]])");
+  IF gBad THEN sTxt:=sTxt+"error"; ELSE sTxt:=sTxt+"bien"; END;
+  gBad:=0;
+  lLin:=CONCAT(lLin,{" "+sTxt,"#Memoria permanente (debe decir bien)"});
+  nMal:=0;
+  lTmp:={};
+  IFERR
+    HVars("INGT"):={"prueba"};
+    lTmp:=HVars("INGT");
+  THEN
+    nMal:=1;
+  END;
+  sTxt:="error";
+  IF nMal==0 AND TYPE(lTmp)==6 THEN
+    IF SIZE(lTmp)==1 THEN sTxt:="bien"; END;
+  END;
+  lLin:=CONCAT(lLin,{" "+sTxt,"~Si algo dice error o da otro valor, anotar cuál: con ese dato se puede corregir."});
+  UiVer("Prueba",lLin);
+END;
+
+
+MdAyuda()
+BEGIN
+  LOCAL lLin,nBot;
+  lLin:={"~ING versión 1.1","#Cómo moverse"," Tocar un cuadro o un renglón para entrar."," Esc o el botón Volver: pantalla anterior."," Teclas 1 a 7: eligen un renglón del menú."," Flechas: cambian de página.","#Cómo escribir una función"," Se usan las teclas normales: X, SIN, LN, ^, etc."," Da igual mayúsculas o minúsculas."," Multiplicar siempre con *  (a*b, no ab)."," Raíz: sqrt(x)     Exponencial: exp(x)     Pi: pi"," log es en base 10 y ln es el natural."," Infinito: inf   o   -inf"," Números grandes: 6.02e23  o con la tecla EEX.","#Decimales"," Usar punto decimal (ajuste de fábrica)."," Formato de número recomendado: Estándar.","#Ángulos"," Arriba a la derecha se ve RAD o DEG: es el ajuste de la calculadora y vale para gráficos, fórmulas e iteraciones."," Derivadas, integrales y límites usan el ajuste de ángulo del CAS (radianes de fábrica).","#Matrices"," A es M1, B es M2 y el resultado queda en M3. Se pueden usar después desde Inicio.","#Fórmulas"," Elegir la variable a calcular y cargar el resto. Sirve para despejar cualquiera, aunque no se pueda despejar a mano."," Usa las variables A a N, X e Y de Inicio como memoria de trabajo."," Las fórmulas propias se guardan en la variable INGF.","#Apps de la calculadora"," Algunos botones abren una app (Función, Gráfico 3D, Hoja de cálculo, Estadística). Para volver, ejecutar ING otra vez.","#Si un resultado simbólico sale raro"," Puede haber una variable con un valor guardado en el CAS. En la pantalla CAS escribir  purge(x)  con el nombre de esa variable.","#Resultados largos"," Con Sig. y Ant. (o las flechas) se pasa de página.","#Si algo falla"," El botón Prueba revisa las funciones de la calculadora que usa el programa y muestra cuál no responde."," El botón Diagn. activa el modo diagnóstico: el error se muestra con su número de renglón."};
+  nBot:=1;
+  WHILE nBot==1 DO
+    nBot:=UiTexto("Ayuda",lLin,{"Diagn.","Prueba",""});
+    IF nBot==2 THEN
+      MdPrueba();
+      nBot:=1;
+    ELSE
+    IF nBot==1 THEN
+      IF gDepura==1 THEN
+        gDepura:=0;
+        UiAviso("Modo diagnóstico desactivado.");
+      ELSE
+        gDepura:=1;
+        UiAviso("Modo diagnóstico activado: si un cálculo falla, la calculadora muestra el error y el número de renglón. Sirve para reportar un problema.");
+      END;
+    END;
+    END;
+  END;
+END;

@@ -1,0 +1,154 @@
+
+// ---------- Pantalla principal ----------
+
+IngIni()
+BEGIN
+  LOCAL vTmp,nMal;
+  gRes:="0";
+  gLhs:="0";
+  gRhs:="0";
+  gBad:=0;
+  gErr:="";
+  gSale:=0;
+  gMenTit:={};
+  gMenTop:={};
+  UiMarca();
+  IF TYPE(gFun)<>2 THEN gFun:="x^2*sin(x)"; END;
+  IF TYPE(gDepura)<>0 THEN gDepura:=0; END;
+  gAng:=ACOS(-1)/3.14159265358979;
+  // formulas propias guardadas en la variable INGF
+  nMal:=0;
+  vTmp:=0;
+  IFERR
+    IF UiPos(HVars,"INGF")>0 THEN vTmp:=HVars("INGF"); END;
+  THEN
+    nMal:=1;
+  END;
+  IF nMal==0 AND TYPE(vTmp)==6 THEN
+    gMias:=vTmp;
+  END;
+  IF TYPE(gMias)<>6 THEN gMias:={}; END;
+END;
+
+// Dibuja una de las dos paginas de cuadros.
+IngPortada(nPag)
+BEGIN
+  LOCAL lNom,lSim,lCol,nIdx,nPx,nPy,sTit,nCol;
+  IF nPag==1 THEN
+    sTit:="ING   Matemática";
+    lNom:={"Gráficos","Derivadas","Integrales","Límites","Ecuaciones","Polinomios","Ec. diferenc.","Laplace","Matrices","Probabilidad","Coordenadas","Campos"};
+    lSim:={"f(x)","d/dx","S dx","lim","x = ?","ax²+b","y' = f","L{f}","[A]","P(X)","r, t","grad"};
+    lCol:={RGB(31,95,160),RGB(31,95,160),RGB(31,95,160),RGB(31,95,160),RGB(20,122,108),RGB(20,122,108),RGB(20,122,108),RGB(20,122,108),RGB(126,66,150),RGB(126,66,150),RGB(126,66,150),RGB(126,66,150)};
+  ELSE
+    sTit:="ING   Ingeniería";
+    lNom:={"Fórmulas","Iteración","Unidades","Constantes","Interpolar","Masa molar","Adimension.","Nuclear","Álgebra","Estadística","Planilla","Ayuda"};
+    lSim:={"F=m.a","k+1","kg | lb","R, NA","y(x)","H2O","Re, Pr","Bq","a + b","Dat","A1","?"};
+    lCol:={RGB(186,92,28),RGB(186,92,28),RGB(186,92,28),RGB(186,92,28),RGB(46,125,60),RGB(46,125,60),RGB(46,125,60),RGB(46,125,60),RGB(70,84,120),RGB(70,84,120),RGB(70,84,120),RGB(70,84,120)};
+  END;
+  UiFondo(sTit);
+  FOR nIdx FROM 1 TO 12 DO
+    nPx:=4+((nIdx-1) MOD 4)*79;
+    nPy:=29+IP((nIdx-1)/4)*63;
+    nCol:=lCol(nIdx);
+    RECT_P(nPx,nPy,nPx+74,nPy+58,nCol,nCol);
+    TEXTOUT_P(lSim(nIdx),nPx+5,nPy+6,5,RGB(255,255,255),68);
+    TEXTOUT_P(lNom(nIdx),nPx+5,nPy+41,1,RGB(255,255,255),68);
+  END;
+  IF nPag==1 THEN
+    DRAWMENU("","Pág. 2","","","Ayuda","Salir");
+  ELSE
+    DRAWMENU("Pág. 1","","","","Ayuda","Salir");
+  END;
+END;
+
+// Abre el modulo del cuadro elegido.
+IngModulo(nPag,nSel)
+BEGIN
+  LOCAL nAux;
+  IF nPag==1 THEN
+    IF nSel==1 THEN MdGraficos(); END;
+    IF nSel==2 THEN MdDerivadas(); END;
+    IF nSel==3 THEN MdIntegrales(); END;
+    IF nSel==4 THEN MdLimites(); END;
+    IF nSel==5 THEN MdEcuaciones(); END;
+    IF nSel==6 THEN nAux:=MdPolinomios(); END;
+    IF nSel==7 THEN MdEdo(); END;
+    IF nSel==8 THEN MdLaplace(); END;
+    IF nSel==9 THEN MdMatrices(); END;
+    IF nSel==10 THEN MdProba(); END;
+    IF nSel==11 THEN MdCoord(); END;
+    IF nSel==12 THEN MdCampos(); END;
+  ELSE
+    IF nSel==1 THEN MdFormulas(); END;
+    IF nSel==2 THEN MdIteracion(); END;
+    IF nSel==3 THEN MdUnidades(); END;
+    IF nSel==4 THEN MdConstantes(); END;
+    IF nSel==5 THEN MdInterp(); END;
+    IF nSel==6 THEN MdMasaMolar(); END;
+    IF nSel==7 THEN FmCategoria(9); END;
+    IF nSel==8 THEN FmCategoria(8); END;
+    IF nSel==9 THEN MdAlgebra(); END;
+    IF nSel==10 THEN MdDatos(); END;
+    IF nSel==11 THEN MdAbreApp({"Spreadsheet","Hoja de cálculo"},2); END;
+    IF nSel==12 THEN MdAyuda(); END;
+  END;
+END;
+
+// Abre el modulo con una red de seguridad: si algo falla adentro,
+// se avisa y se vuelve al menu en lugar de cortar el programa.
+// Con el modo diagnostico (boton Diagn. de la Ayuda) el error se
+// muestra tal cual, con su numero de renglon.
+IngAbre(nPag,nSel)
+BEGIN
+  LOCAL nMal;
+  IF gDepura==1 THEN
+    IngModulo(nPag,nSel);
+  ELSE
+    nMal:=0;
+    IFERR
+      IngModulo(nPag,nSel);
+    THEN
+      nMal:=1;
+    END;
+    IF nMal THEN
+      gBad:=0;
+      UiAviso("Este cálculo no se pudo completar. Revisar los datos y probar de nuevo. Si se repite: entrar a Ayuda, tocar Diagn. y repetirlo para ver el detalle del error.");
+    END;
+  END;
+END;
+
+EXPORT ING()
+BEGIN
+  LOCAL lEvt,nSel,nPag,nCol,nFil,nSof,nTec;
+  IngIni();
+  nPag:=1;
+  REPEAT
+    IngPortada(nPag);
+    lEvt:=UiEspera();
+    nSel:=0;
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=29 AND lEvt(2)>=4 THEN
+          nCol:=IP((lEvt(2)-4)/79);
+          nFil:=IP((lEvt(3)-29)/63);
+          IF nCol<=3 AND nFil<=2 THEN nSel:=nFil*4+nCol+1; END;
+        END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 THEN nSof:=6; END;
+    IF nTec==3 THEN nSof:=5; END;
+    IF nTec==8 OR nTec==12 THEN nSof:=2; END;
+    IF nTec==7 OR nTec==2 THEN nSof:=1; END;
+    IF nSof==1 THEN nPag:=1; END;
+    IF nSof==2 THEN nPag:=2; END;
+    IF nSof==5 THEN IngAbre(2,12); END;
+    IF nSof==6 THEN gSale:=1; END;
+    IF nSel>0 THEN IngAbre(nPag,nSel); END;
+  UNTIL gSale;
+END;

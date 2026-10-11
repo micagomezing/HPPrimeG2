@@ -1,0 +1,470 @@
+
+// ---------- Graficos propios ----------
+
+// Evalua gRes en nPts+1 puntos entre nLimA y nLimB.
+// Devuelve {valores de x, valores de f, validez}.
+GrMuestra(nLimA,nLimB,nPts)
+BEGIN
+  LOCAL lVx,lVy,lOk,nIdx,nVal,nFx;
+  lVx:={};
+  lVy:={};
+  lOk:={};
+  FOR nIdx FROM 0 TO nPts DO
+    nVal:=nLimA+(nLimB-nLimA)*nIdx/nPts;
+    gBad:=0;
+    nFx:=ExF(nVal);
+    lVx:=CONCAT(lVx,{nVal});
+    lVy:=CONCAT(lVy,{nFx});
+    lOk:=CONCAT(lOk,{1-gBad});
+  END;
+  gBad:=0;
+  RETURN {lVx,lVy,lOk};
+END;
+
+// Rango vertical automatico. Recorta si hay asintotas.
+GrRangoY(lVy,lOk)
+BEGIN
+  LOCAL lVal,nIdx,nCnt,nLo,nHi,nPa,nPb,nMar;
+  LOCAL nBan,nSup,nInf,nTa,nTb;
+  lVal:={};
+  FOR nIdx FROM 1 TO SIZE(lVy) DO
+    IF lOk(nIdx) THEN lVal:=CONCAT(lVal,{lVy(nIdx)}); END;
+  END;
+  nCnt:=SIZE(lVal);
+  IF nCnt==0 THEN RETURN {-1,1}; END;
+  lVal:=SORT(lVal);
+  nLo:=lVal(1);
+  nHi:=lVal(nCnt);
+  // Si unos pocos valores son enormes frente al resto (asintota),
+  // se recorta ese lado para que la curva se pueda ver.
+  IF nCnt>=20 THEN
+    nPa:=lVal(IP(nCnt*0.1)+1);
+    nPb:=lVal(IP(nCnt*0.9));
+    nBan:=nPb-nPa;
+    IF nBan>0.000000001*(nHi-nLo) AND nHi-nLo>8*nBan THEN
+      nTa:=nPa-2*nBan;
+      nTb:=nPb+2*nBan;
+      nInf:=0;
+      nSup:=0;
+      FOR nIdx FROM 1 TO nCnt DO
+        IF lVal(nIdx)<nTa THEN nInf:=nInf+1; END;
+        IF lVal(nIdx)>nTb THEN nSup:=nSup+1; END;
+      END;
+      IF nInf>0 AND nInf<0.08*nCnt THEN nLo:=nTa; END;
+      IF nSup>0 AND nSup<0.08*nCnt THEN nHi:=nTb; END;
+    END;
+  END;
+  IF nHi==nLo THEN
+    nLo:=nLo-1;
+    nHi:=nHi+1;
+  END;
+  nMar:=(nHi-nLo)*0.06;
+  RETURN {nLo-nMar,nHi+nMar};
+END;
+
+// Dibuja la curva y = f(x) con ejes y rotulos.
+GrCart(sTit,lPar,nLimA,nLimB,nYa,nYb)
+BEGIN
+  LOCAL lVx,lVy,lOk,nIdx,nPxa,nPya,nPxb,nPyb;
+  LOCAL nSx,nSy,nEje,nOka,nCa,nCb;
+  lVx:=lPar(1);
+  lVy:=lPar(2);
+  lOk:=lPar(3);
+  UiFondo(sTit);
+  RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+  nSx:=308/(nLimB-nLimA);
+  nSy:=158/(nYb-nYa);
+  FOR nIdx FROM 1 TO 3 DO
+    LINE_P(6+nIdx*77,29,6+nIdx*77,185,RGB(232,235,242));
+    LINE_P(7,IP(28+nIdx*39.5),313,IP(28+nIdx*39.5),RGB(232,235,242));
+  END;
+  IF nYa<0 AND nYb>0 THEN
+    nEje:=IP(186+nYa*nSy);
+    LINE_P(7,nEje,313,nEje,RGB(120,125,140));
+  END;
+  IF nLimA<0 AND nLimB>0 THEN
+    nEje:=IP(6-nLimA*nSx);
+    LINE_P(nEje,29,nEje,185,RGB(120,125,140));
+  END;
+  nOka:=0;
+  nPxa:=0;
+  nPya:=0;
+  FOR nIdx FROM 1 TO SIZE(lVx) DO
+    IF lOk(nIdx) THEN
+      nPxb:=IP(6+(lVx(nIdx)-nLimA)*nSx);
+      nPyb:=186-(lVy(nIdx)-nYa)*nSy;
+      IF nOka THEN
+        IF (nPya>=28 OR nPyb>=28) AND (nPya<=186 OR nPyb<=186) THEN
+          IF ABS(nPyb-nPya)<240 THEN
+            nCa:=IP(MAX(29,MIN(185,nPya)));
+            nCb:=IP(MAX(29,MIN(185,nPyb)));
+            LINE_P(nPxa,nCa,nPxb,nCb,RGB(200,50,40));
+            LINE_P(nPxa,nCa+1,nPxb,nCb+1,RGB(200,50,40));
+          END;
+        END;
+      END;
+      nPxa:=nPxb;
+      nPya:=nPyb;
+      nOka:=1;
+    ELSE
+      nOka:=0;
+    END;
+  END;
+  TEXTOUT_P(UiNum(nYb,4),9,30,1,RGB(90,95,110));
+  TEXTOUT_P(UiNum(nYa,4),9,173,1,RGB(90,95,110));
+  TEXTOUT_P("x de "+UiNum(nLimA,4)+" a "+UiNum(nLimB,4),8,188,1,RGB(90,95,110));
+END;
+
+// Dibuja r = f(angulo). lPar = {angulos, radios, validez}.
+// Devuelve la escala usada (pixeles por unidad).
+GrPolar(sTit,lPar,nZoom)
+BEGIN
+  LOCAL lVt,lVr,lOk,nIdx,nRmax,nEsc,nPxa,nPya;
+  LOCAL nPxb,nPyb,nOka,nAng,nRad,nCir;
+  lVt:=lPar(1);
+  lVr:=lPar(2);
+  lOk:=lPar(3);
+  nRmax:=0;
+  FOR nIdx FROM 1 TO SIZE(lVr) DO
+    IF lOk(nIdx) THEN nRmax:=MAX(nRmax,ABS(lVr(nIdx))); END;
+  END;
+  IF nRmax==0 THEN nRmax:=1; END;
+  nRmax:=nRmax/nZoom;
+  nEsc:=76/nRmax;
+  UiFondo(sTit);
+  RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+  // circulos de referencia en r max y r max / 2
+  FOR nCir FROM 1 TO 2 DO
+    nRad:=38*nCir;
+    nPxa:=160+nRad;
+    nPya:=107;
+    FOR nIdx FROM 1 TO 48 DO
+      nAng:=nIdx*0.130899693899575;
+      nPxb:=IP(160+nRad*COS(nAng*gAng));
+      nPyb:=IP(107-nRad*SIN(nAng*gAng));
+      LINE_P(nPxa,nPya,nPxb,nPyb,RGB(225,229,238));
+      nPxa:=nPxb;
+      nPya:=nPyb;
+    END;
+  END;
+  LINE_P(7,107,313,107,RGB(150,155,170));
+  LINE_P(160,29,160,185,RGB(150,155,170));
+  nOka:=0;
+  nPxa:=0;
+  nPya:=0;
+  FOR nIdx FROM 1 TO SIZE(lVt) DO
+    IF lOk(nIdx) THEN
+      nPxb:=160+lVr(nIdx)*COS(lVt(nIdx))*nEsc;
+      nPyb:=107-lVr(nIdx)*SIN(lVt(nIdx))*nEsc;
+      IF nOka THEN
+        IF ABS(nPxb-160)<154 AND ABS(nPyb-107)<79 THEN
+          IF ABS(nPxa-160)<154 AND ABS(nPya-107)<79 THEN
+            LINE_P(IP(nPxa),IP(nPya),IP(nPxb),IP(nPyb),RGB(200,50,40));
+            LINE_P(IP(nPxa),IP(nPya)+1,IP(nPxb),IP(nPyb)+1,RGB(200,50,40));
+          END;
+        END;
+      END;
+      nPxa:=nPxb;
+      nPya:=nPyb;
+      nOka:=1;
+    ELSE
+      nOka:=0;
+    END;
+  END;
+  TEXTOUT_P("r = "+UiNum(nRmax,4),238,96,1,RGB(90,95,110));
+  TEXTOUT_P("Círculos en r = "+UiNum(nRmax/2,4)+" y "+UiNum(nRmax,4),8,188,1,RGB(90,95,110));
+  RETURN nEsc;
+END;
+
+// Pantalla de grafico con zoom, rango y lectura al tocar.
+// nModo 0: y = f(x).  nModo 1: polar r = f(angulo).
+UiGraf(sTit,nModo,nIniA,nIniB)
+BEGIN
+  LOCAL nLimA,nLimB,nYa,nYb,nFin,lEvt,nSof,lPar;
+  LOCAL lRan,nTec,nCen,nAnc,lDat,nRec,nLeeX,nLeeY;
+  LOCAL nHay,sLec,nManual,nPx,nPy,nZoom,nEsc,nIdx;
+  LOCAL nMejor,nDis,nDx,nDy,lVt,lVr,lOk,nTx;
+  nLimA:=nIniA;
+  nLimB:=nIniB;
+  nFin:=0;
+  nRec:=1;
+  nHay:=0;
+  nManual:=0;
+  nZoom:=1;
+  nYa:=-1;
+  nYb:=1;
+  nEsc:=1;
+  nLeeX:=0;
+  nLeeY:=0;
+  REPEAT
+    IF nRec THEN
+      UiCalc(sTit);
+      IF nModo==0 THEN
+        lPar:=GrMuestra(nLimA,nLimB,154);
+        IF nManual==0 THEN
+          lRan:=GrRangoY(lPar(2),lPar(3));
+          nYa:=lRan(1);
+          nYb:=lRan(2);
+        END;
+      ELSE
+        lPar:=GrMuestra(nLimA,nLimB,240);
+      END;
+      nRec:=0;
+    END;
+    IF nModo==0 THEN
+      GrCart(sTit,lPar,nLimA,nLimB,nYa,nYb);
+      IF nHay THEN
+        nPx:=IP(6+(nLeeX-nLimA)*308/(nLimB-nLimA));
+        nPy:=IP(MAX(29,MIN(185,186-(nLeeY-nYa)*158/(nYb-nYa))));
+        LINE_P(nPx,29,nPx,185,RGB(60,120,200));
+        RECT_P(nPx-3,nPy-3,nPx+3,nPy+3,RGB(20,70,150),RGB(20,70,150));
+        sLec:="x = "+UiNum(nLeeX,6)+"    f(x) = "+UiNum(nLeeY,6);
+        TEXTOUT_P(sLec,8,202,3,RGB(20,70,150));
+      ELSE
+        TEXTOUT_P("Tocá el gráfico para leer un punto.",8,203,2,RGB(105,110,128));
+      END;
+    ELSE
+      nEsc:=GrPolar(sTit,lPar,nZoom);
+      IF nHay THEN
+        nPx:=IP(160+nLeeY*COS(nLeeX)*nEsc);
+        nPy:=IP(107-nLeeY*SIN(nLeeX)*nEsc);
+        RECT_P(nPx-3,nPy-3,nPx+3,nPy+3,RGB(20,70,150),RGB(20,70,150));
+        sLec:="áng = "+UiNum(nLeeX,5)+"    r = "+UiNum(nLeeY,6);
+        TEXTOUT_P(sLec,8,202,3,RGB(20,70,150));
+      ELSE
+        TEXTOUT_P("Tocá la curva para leer un punto.",8,203,2,RGB(105,110,128));
+      END;
+    END;
+    DRAWMENU("Zoom +","Zoom -","Rango","","","Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN
+        nSof:=UiSoft(lEvt(2));
+      ELSE
+        IF lEvt(3)>=28 AND lEvt(3)<=186 THEN
+          nTx:=MAX(6,MIN(314,lEvt(2)));
+          IF nModo==0 THEN
+            nLeeX:=nLimA+(nTx-6)*(nLimB-nLimA)/308;
+            gBad:=0;
+            nLeeY:=ExF(nLeeX);
+            nHay:=1-gBad;
+            gBad:=0;
+          ELSE
+            lVt:=lPar(1);
+            lVr:=lPar(2);
+            lOk:=lPar(3);
+            nMejor:=0;
+            nDis:=1000000;
+            FOR nIdx FROM 1 TO SIZE(lVt) DO
+              IF lOk(nIdx) THEN
+                nDx:=160+lVr(nIdx)*COS(lVt(nIdx))*nEsc-nTx;
+                nDy:=107-lVr(nIdx)*SIN(lVt(nIdx))*nEsc-lEvt(3);
+                IF nDx*nDx+nDy*nDy<nDis THEN
+                  nDis:=nDx*nDx+nDy*nDy;
+                  nMejor:=nIdx;
+                END;
+              END;
+            END;
+            IF nMejor>0 THEN
+              nLeeX:=lVt(nMejor);
+              nLeeY:=lVr(nMejor);
+              nHay:=1;
+            END;
+          END;
+        END;
+      END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==19 OR nTec==30 THEN nSof:=6; END;
+    IF nTec==50 THEN nSof:=1; END;
+    IF nTec==45 THEN nSof:=2; END;
+    IF nSof==1 OR nSof==2 THEN
+      nHay:=0;
+      IF nModo==0 THEN
+        nCen:=(nLimA+nLimB)/2;
+        nAnc:=(nLimB-nLimA)/2;
+        IF nSof==1 THEN
+          // no se acerca mas alla de lo que la calculadora puede distinguir
+          IF nAnc>0.000001*MAX(ABS(nCen),0.000001) THEN nAnc:=nAnc/2; END;
+        ELSE
+          nAnc:=nAnc*2;
+        END;
+        nLimA:=nCen-nAnc;
+        nLimB:=nCen+nAnc;
+        nRec:=1;
+      ELSE
+        IF nSof==1 THEN nZoom:=nZoom*2; ELSE nZoom:=nZoom/2; END;
+      END;
+    END;
+    IF nSof==3 THEN
+      IF nModo==0 THEN
+        lDat:=UiPedir("Rango del gráfico",{"x mínimo = ","x máximo = ","y mínimo = ","y máximo = "},{"Extremo izquierdo","Extremo derecho","Dejar 0 y 0 para ajuste automático","Dejar 0 y 0 para ajuste automático"},{nLimA,nLimB,0,0},0);
+        IF SIZE(lDat)>0 THEN
+          IF lDat(2)>lDat(1) THEN
+            nLimA:=lDat(1);
+            nLimB:=lDat(2);
+            nManual:=0;
+            IF lDat(4)>lDat(3) THEN
+              nManual:=1;
+              nYa:=lDat(3);
+              nYb:=lDat(4);
+            END;
+            nRec:=1;
+            nHay:=0;
+          ELSE
+            UiAviso("El máximo debe ser mayor que el mínimo.");
+          END;
+        END;
+      ELSE
+        lDat:=UiPedir("Rango del ángulo",{"Desde = ","Hasta = "},{"Ángulo inicial (en la unidad de la calculadora)","Ángulo final"},{nLimA,nLimB},0);
+        IF SIZE(lDat)>0 THEN
+          IF lDat(2)>lDat(1) THEN
+            nLimA:=lDat(1);
+            nLimB:=lDat(2);
+            nRec:=1;
+            nHay:=0;
+          ELSE
+            UiAviso("El final debe ser mayor que el inicio.");
+          END;
+        END;
+      END;
+    END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+END;
+
+// Muestra una curva ya calculada y espera.
+GrVer(sTit,lPar,nLimA,nLimB)
+BEGIN
+  LOCAL lRan,lEvt;
+  lRan:=GrRangoY(lPar(2),lPar(3));
+  GrCart(sTit,lPar,nLimA,nLimB,lRan(1),lRan(2));
+  DRAWMENU("","","","","","Volver");
+  lEvt:=UiEspera();
+END;
+
+// Superficie z = f(x,y) en malla de alambre. gRes usa X e Y.
+GrSuperf(sTit,nXa,nXb,nYa,nYb)
+BEGIN
+  LOCAL lZz,lOk,nIi,nJj,nVal,nZa,nZb,nHay;
+  LOCAL nAz,nFin,lEvt,nSof,nTec,nCa,nSa,nUu;
+  LOCAL nVv,nWw,lPx,lPy,nKk,nPx,nPy,nNn;
+  LOCAL nUr,nVr;
+  nNn:=14;
+  UiCalc(sTit);
+  lZz:={};
+  lOk:={};
+  nHay:=0;
+  nZa:=0;
+  nZb:=0;
+  FOR nIi FROM 0 TO nNn DO
+    FOR nJj FROM 0 TO nNn DO
+      gBad:=0;
+      nVal:=ExF2(nXa+(nXb-nXa)*nIi/nNn,nYa+(nYb-nYa)*nJj/nNn);
+      lZz:=CONCAT(lZz,{nVal});
+      lOk:=CONCAT(lOk,{1-gBad});
+      IF gBad==0 THEN
+        IF nHay==0 THEN
+          nZa:=nVal;
+          nZb:=nVal;
+          nHay:=1;
+        END;
+        nZa:=MIN(nZa,nVal);
+        nZb:=MAX(nZb,nVal);
+      END;
+    END;
+  END;
+  gBad:=0;
+  IF nHay==0 THEN
+    UiAviso("La función no se pudo evaluar en ese rango.");
+    RETURN 0;
+  END;
+  IF nZb==nZa THEN
+    nZa:=nZa-1;
+    nZb:=nZb+1;
+  END;
+  nAz:=0.6;
+  nFin:=0;
+  REPEAT
+    UiFondo(sTit);
+    RECT_P(6,28,314,186,RGB(200,206,220),RGB(255,255,255));
+    nCa:=COS(nAz*gAng);
+    nSa:=SIN(nAz*gAng);
+    lPx:={};
+    lPy:={};
+    FOR nIi FROM 0 TO nNn DO
+      FOR nJj FROM 0 TO nNn DO
+        nKk:=nIi*(nNn+1)+nJj+1;
+        nUu:=2*nIi/nNn-1;
+        nVv:=2*nJj/nNn-1;
+        nWw:=2*(lZz(nKk)-nZa)/(nZb-nZa)-1;
+        nUr:=nUu*nCa-nVv*nSa;
+        nVr:=nUu*nSa+nVv*nCa;
+        lPx:=CONCAT(lPx,{IP(160+92*nUr)});
+        lPy:=CONCAT(lPy,{IP(110+30*nVr-44*nWw)});
+      END;
+    END;
+    FOR nIi FROM 0 TO nNn DO
+      FOR nJj FROM 0 TO nNn DO
+        nKk:=nIi*(nNn+1)+nJj+1;
+        IF lOk(nKk) THEN
+          IF nJj<nNn THEN
+            IF lOk(nKk+1) THEN
+              LINE_P(lPx(nKk),lPy(nKk),lPx(nKk+1),lPy(nKk+1),RGB(31,95,160));
+            END;
+          END;
+          IF nIi<nNn THEN
+            IF lOk(nKk+nNn+1) THEN
+              LINE_P(lPx(nKk),lPy(nKk),lPx(nKk+nNn+1),lPy(nKk+nNn+1),RGB(200,50,40));
+            END;
+          END;
+        END;
+      END;
+    END;
+    // esquina de referencia: (x min, y min)
+    nPx:=IP(160+92*(-nCa+nSa));
+    nPy:=IP(110+30*(-nSa-nCa)+44);
+    RECT_P(nPx-2,nPy-2,nPx+2,nPy+2,RGB(20,20,30),RGB(20,20,30));
+    TEXTOUT_P("x: "+UiNum(nXa,3)+" a "+UiNum(nXb,3)+"   y: "+UiNum(nYa,3)+" a "+UiNum(nYb,3),8,188,1,RGB(90,95,110));
+    TEXTOUT_P("z: "+UiNum(nZa,4)+" a "+UiNum(nZb,4)+"   (punto negro = x mín, y mín, z mín)",8,203,1,RGB(90,95,110));
+    DRAWMENU("Girar <","Girar >","","","","Volver");
+    lEvt:=UiEspera();
+    nSof:=0;
+    nTec:=-1;
+    IF lEvt(1)==1 THEN
+      IF lEvt(3)>=220 THEN nSof:=UiSoft(lEvt(2)); END;
+    ELSE
+      nTec:=lEvt(2);
+    END;
+    IF nTec==4 OR nTec==19 OR nTec==30 THEN nSof:=6; END;
+    IF nTec==7 THEN nSof:=1; END;
+    IF nTec==8 THEN nSof:=2; END;
+    IF nSof==1 THEN nAz:=nAz-0.5235987756; END;
+    IF nSof==2 THEN nAz:=nAz+0.5235987756; END;
+    IF nSof==6 THEN nFin:=1; END;
+  UNTIL nFin;
+  RETURN 1;
+END;
+
+// Abre una aplicacion de la calculadora. Prueba varios nombres
+// porque cambian con el idioma y la version.
+MdAbreApp(lNom,nVista)
+BEGIN
+  LOCAL nIdx;
+  FOR nIdx FROM 1 TO SIZE(lNom) DO
+    IFERR
+      STARTAPP(lNom(nIdx));
+    THEN
+      gErr:="app";
+    END;
+  END;
+  IFERR
+    STARTVIEW(nVista,1);
+  THEN
+    gErr:="vista";
+  END;
+  gSale:=1;
+END;
